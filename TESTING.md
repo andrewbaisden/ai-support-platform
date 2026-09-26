@@ -1,6 +1,20 @@
 # Testing strategy
 
-Phase 0 has no application code or test runner. Its verification is a document and repository-state review. Future phase gates must run the relevant available checks, update this file with real commands, and record results in that phase's handoff. Do not claim commands work before Phase 1 creates them.
+Phase 1 provides the test runners and app shells. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
+
+## Commands available now
+
+```sh
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+git diff --check
+```
+
+`pnpm test` runs Vitest with React Testing Library in jsdom. `pnpm test:e2e` starts both apps and runs the Playwright Chromium smoke test; install Chromium first with `pnpm exec playwright install chromium` if needed. `pnpm typecheck` checks root tooling configuration and both app projects after `next typegen`. CI runs the first five pnpm checks; browser tests are a separate local gate until product flows justify adding them to CI.
 
 ## Layers
 
@@ -28,7 +42,7 @@ Add fixtures for category-hint disagreement, ambiguous bug reports, private toke
 ## Acceptance and phase gates
 
 - **Phase 0:** All requested documents exist, agree on MVP scope and state flow, cite current Jev/GitHub integration sources, and name unresolved operational inputs. No application scaffold or dependencies are added.
-- **Phase 1:** `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test` work as documented. CI runs build, typecheck, lint, and tests.
+- **Phase 1:** `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test` work as documented. CI runs build, typecheck, lint, and tests; Playwright verifies both shells locally.
 - **Phase 2:** Fresh database migrates and seeds; constraints and cross-tenant repository tests pass.
 - **Phases 3–4:** Demo widget submits to API and receives the same ticket on idempotent retry; accessibility and API error paths pass.
 - **Phases 5–6:** Validated classification persists, deterministic routes are correct, AI failures leave an actionable ticket, and owner dashboard shows history.

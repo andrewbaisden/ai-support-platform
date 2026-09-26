@@ -64,7 +64,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** Reliable source-backed answers and a reply channel require product and safety work beyond the GitHub triage journey. A confirmation is the MVP visitor response.
 
+## ADR-009 — Webpack for Phase 1 Next.js scripts
+
+**Decision:** Use Next.js 16's supported `--webpack` option for both app development and production builds until the Turbopack PostCSS worker can run reliably in the development environment. Keep the code and configuration compatible with the default bundler where possible. [Next.js CLI options](https://nextjs.org/docs/app/api-reference/cli/next)
+
+**Why:** The platform app's Tailwind/PostCSS import causes the default Turbopack build to fail while its worker binds a local port (`Operation not permitted`), including in an escalated run. The same app builds successfully with `next build --webpack`. A foundation phase needs a reproducible `pnpm build` and `pnpm dev`; this is a tooling workaround, not a product or domain redesign.
+
+**Consequence:** Re-test Turbopack in a normal development/CI environment before removing the flag. Do not add custom Webpack configuration merely because this flag is present.
+
 ## Open operational inputs
+
 
 - TypeSafe/Jev account access is needed before the optional live classifier test in Phase 5.
 - A disposable GitHub repository and GitHub App registration are needed in Phase 7; never use the portfolio repository as the initial test target.

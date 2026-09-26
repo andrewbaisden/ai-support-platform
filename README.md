@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository is in **Phase 0: product and architecture specification**. There is no runnable application yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 1: repository foundation**. The two Next.js application shells, workspace tooling, CI, and smoke tests run locally. Product workflows are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -20,19 +20,38 @@ The MVP includes an internal React widget, demo consumer, public ticket API, own
 
 The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion, complex RAG, email or chat integrations, autonomous support agents, advanced duplicate detection, analytics, and the portfolio deployment. See [ARCHITECTURE.md](ARCHITECTURE.md#deferred-work) for the later roadmap.
 
-## Planned repository layout
+## Repository layout
 
 ```text
-apps/web/                 Platform UI and API
-apps/demo/                Controlled widget consumer
-packages/widget/          Internal embeddable React widget
-packages/db/              PostgreSQL schema, migrations, repositories
-packages/ai/              Classifier and generation interfaces/adapters
-packages/github/          GitHub App adapter and issue mapping
+apps/web/                 Platform app shell; future UI and API
+apps/demo/                Controlled consumer app shell
+e2e/                      Browser smoke checks
+.github/workflows/ci.yml  Repository verification
 docs/handoffs/            Phase handoffs
 ```
 
-Packages will be added only when a phase needs them. The initial stack is Node.js, pnpm, Next.js 16 App Router, strict TypeScript, PostgreSQL, Drizzle, Better Auth when dashboard access is introduced, Tailwind CSS, shadcn/ui, React Hook Form, Zod, Vitest, React Testing Library, and Playwright. TanStack Query is reserved for dashboard server state where it helps; Zustand is not planned.
+`packages/` does not exist yet. Widget, database, AI, and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, Biome, Tailwind CSS in the platform shell, Zod for server environment validation, Vitest, React Testing Library, and Playwright. Drizzle, Better Auth, shadcn/ui, React Hook Form, and TanStack Query arrive only when their features need them; Zustand is not planned.
+
+## Local development
+
+Use Node.js 24 (`.node-version`) and the pnpm version declared in `package.json`. The repository requires no custom environment variables yet; `.env.example` documents the rule for adding them. Do not commit `.env` files or secrets.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+The platform shell runs at `http://127.0.0.1:3000`; the demo runs at `http://127.0.0.1:3001`. `pnpm dev:web` and `pnpm dev:demo` run them individually.
+
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+`pnpm format` applies Biome formatting. `pnpm test:e2e` needs Playwright Chromium; install it with `pnpm exec playwright install chromium` if absent. Both apps use Next.js 16's supported Webpack option because Turbopack's PostCSS worker could not bind a local port in the Phase 1 development environment; see [DECISIONS.md](DECISIONS.md).
 
 ## Development phases
 
@@ -57,4 +76,4 @@ Each phase stops with a handoff in `docs/handoffs/`. Phase 1 starts only after r
 - [TESTING.md](TESTING.md): fixtures, testing layers, and phase gates.
 - [AGENTS.md](AGENTS.md): implementation rules for future coding agents.
 
-Local setup, screenshots, a live demo, and package installation instructions will be added when those capabilities exist.
+Screenshots, a live demo, and package installation instructions will be added when those capabilities exist.
