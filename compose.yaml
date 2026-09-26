@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: support_dev
+      POSTGRES_DB: support_platform
+    ports:
+      - "127.0.0.1:54339:5432"
+    volumes:
+      - support_postgres_data:/var/lib/postgresql/data
+      - ./packages/db/docker/init-test-db.sql:/docker-entrypoint-initdb.d/01-init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support -d support_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  support_postgres_data:

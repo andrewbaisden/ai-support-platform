@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 1: repository foundation**. The two Next.js application shells, workspace tooling, CI, and smoke tests run locally. Product workflows are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 2: domain and database foundation**. The two Next.js application shells and a PostgreSQL/Drizzle package run locally. Product workflows and HTTP endpoints are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -25,16 +25,17 @@ The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion
 ```text
 apps/web/                 Platform app shell; future UI and API
 apps/demo/                Controlled consumer app shell
+packages/db/              Drizzle schema, migrations, seed, scoped repository
 e2e/                      Browser smoke checks
 .github/workflows/ci.yml  Repository verification
 docs/handoffs/            Phase handoffs
 ```
 
-`packages/` does not exist yet. Widget, database, AI, and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, Biome, Tailwind CSS in the platform shell, Zod for server environment validation, Vitest, React Testing Library, and Playwright. Drizzle, Better Auth, shadcn/ui, React Hook Form, and TanStack Query arrive only when their features need them; Zustand is not planned.
+Widget, AI, and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, Zod, Vitest, React Testing Library, and Playwright. Better Auth, shadcn/ui, React Hook Form, and TanStack Query arrive only when their features need them; Zustand is not planned.
 
 ## Local development
 
-Use Node.js 24 (`.node-version`) and the pnpm version declared in `package.json`. The repository requires no custom environment variables yet; `.env.example` documents the rule for adding them. Do not commit `.env` files or secrets.
+Use Node.js 24 (`.node-version`) and the pnpm version declared in `package.json`. The app shells require no database to start. For database commands, copy `.env.example` to ignored `.env`; the example values are local-only Docker credentials. Do not commit `.env` files or production secrets.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -53,6 +54,23 @@ pnpm test:e2e
 
 `pnpm format` applies Biome formatting. `pnpm test:e2e` needs Playwright Chromium; install it with `pnpm exec playwright install chromium` if absent. Both apps use Next.js 16's supported Webpack option because Turbopack's PostCSS worker could not bind a local port in the Phase 1 development environment; see [DECISIONS.md](DECISIONS.md).
 
+## Local PostgreSQL
+
+Docker Compose starts only PostgreSQL 16 and creates separate development and test databases. Port `54339` is bound to loopback, with a persistent Compose volume. Docker is optional for developers who provide equivalent local PostgreSQL URLs.
+
+```sh
+cp .env.example .env
+pnpm db:up
+pnpm db:migrate
+pnpm db:seed
+pnpm test:db
+pnpm db:down
+```
+
+`pnpm db:down` preserves the volume. `pnpm db:generate` creates a versioned migration after an intentional schema change; review and commit its SQL and snapshot. `pnpm db:check` checks migration history. `pnpm db:studio` starts Drizzle Studio for local inspection. Never use schema push as the deployment path. The seed is repeatable and creates one workspace, two projects, and four sample tickets without AI or GitHub calls.
+
+`pnpm test` remains database-free; `pnpm test:db` migrates and clears only the separate local `*_test` database. The test runner rejects a nonlocal or non-test URL. GitHub Actions starts PostgreSQL 16 and runs the same database suite after the unit checks.
+
 ## Development phases
 
 | Phase | Outcome |
@@ -65,7 +83,7 @@ pnpm test:e2e
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 1 starts only after review of this specification.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 3 starts only after review of the Phase 2 handoff.
 
 ## Documentation
 

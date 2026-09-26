@@ -1,0 +1,2 @@
+ALTER TABLE "ticket_classifications" ADD COLUMN "classification_number" bigserial NOT NULL;--> statement-breakpoint
+ALTER TABLE "ticket_classifications" ADD CONSTRAINT "classifications_number_unique" UNIQUE("classification_number");

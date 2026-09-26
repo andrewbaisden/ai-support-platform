@@ -72,8 +72,37 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** Re-test Turbopack in a normal development/CI environment before removing the flag. Do not add custom Webpack configuration merely because this flag is present.
 
-## Open operational inputs
+## ADR-010 — Domain values as constrained text
 
+**Decision:** Store ticket type, severity, route, ticket status, message role, integration/issue state, and webhook processing state as `text` columns with named PostgreSQL `CHECK` constraints. Export the corresponding TypeScript value sets from `packages/db`.
+
+**Why:** These are product concepts, not provider concepts. Named checks preserve database enforcement while allowing new values through ordinary reviewed migrations without PostgreSQL enum replacement steps. Do not rely on Drizzle TypeScript unions alone for integrity.
+
+## ADR-011 — UUID identifiers, references, and lifecycle
+
+**Decision:** Use PostgreSQL-generated UUIDv4 primary keys for domain records and a separate `BIGSERIAL` ticket number for display as `SUP-<number>`. IDs are internal; the sequential reference grants no access. Use `timestamptz` for all recorded times. Default foreign keys to `RESTRICT` rather than cascading project, ticket, or audit deletion; explicit retention/deletion workflows come later.
+
+**Why:** UUID defaults are simple, available in the local PostgreSQL version, and safe across distributed writers. Ticket numbers are for humans, not entity identity. Restrictive deletes protect support and audit history from accidental loss.
+
+## ADR-012 — GitHub issue intent and future aggregation
+
+**Decision:** Allow a `github_issues` row to exist before GitHub assigns its remote ID. It records a unique ticket linkage, immutable reconciliation marker, target repository, and a pending/reconciliation state; remote issue fields become complete together after a confirmed create or lookup. The MVP has one issue per ticket and one ticket per issue. A later aggregation phase can add a ticket-to-issue join table and migrate existing links without replacing the remote issue identity.
+
+**Why:** Persisting the marker and target before the remote call lets a lost response be reconciled without blind duplicate creation. Null remote fields represent a real pending intent, not a fake GitHub issue.
+
+## ADR-013 — Local PostgreSQL and integration tests
+
+**Decision:** Use a single PostgreSQL 16 Alpine Docker Compose service for local development, with separate development and test databases initialized in one disposable volume. Use the same major version in GitHub Actions. Integration tests require an explicit `DATABASE_URL_TEST` ending in `_test`, apply checked-in migrations, and clean only that isolated database. Unit tests remain database-free.
+
+**Why:** PostgreSQL constraints and transactions are material to this phase, so SQLite would give misleading results. Docker is already available locally and avoids a production provider dependency. Keeping unit and database tests separate preserves a fast default `pnpm test`.
+
+## ADR-014 — Append-only classifications with explicit ordering
+
+**Decision:** Keep every accepted classification as a separate row and assign it a database-generated monotonic classification number. The current classification is the highest number for a ticket; `Ticket.route` is a materialized workflow route updated in the same transaction. Only validated/policy-normalized decisions are stored, with source `model`, `manual`, `fallback`, or development `fixture`.
+
+**Why:** A timestamp alone can tie within a transaction and does not identify the latest decision reliably. The number is internal ordering, not a public ID. Historical rows make later corrections and provider comparisons auditable without overwriting a prior decision.
+
+## Open operational inputs
 
 - TypeSafe/Jev account access is needed before the optional live classifier test in Phase 5.
 - A disposable GitHub repository and GitHub App registration are needed in Phase 7; never use the portfolio repository as the initial test target.

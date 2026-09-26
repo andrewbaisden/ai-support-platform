@@ -36,16 +36,31 @@ The external widget interface is expected to be `<SupportWidget projectKey="pk_.
 
 | Entity | MVP responsibility and key relationships |
 | --- | --- |
-| User / Workspace / WorkspaceMember | Owner identity and workspace authorization. One owner initially; member relation establishes the tenant boundary. Auth provider tables can remain distinct from domain membership. |
-| Project / ProjectKey | Website identity, allowed origins, settings, and rotatable public widget key; belongs to one workspace. Project key is unique, public, and revocable. |
-| Conversation / Message | Visitor thread and its immutable incoming messages; belongs to one project. MVP submission creates one conversation and its first message. |
-| Ticket | Operational record for a conversation and project; stores public reference, workflow status, and current route. Creation never depends on providers. |
-| TicketClassification | Validated classifier result, source/model version, confidence, and timestamp; may be absent or replaced by a later attempt. Preserve enough history to audit changes. |
-| TicketEvent | Append-only state and integration timeline for the dashboard and recovery. |
-| GitHubIntegration | Project to repository mapping plus GitHub App installation and repository IDs; does not store a browser-visible credential. A project has at most one active connection in MVP. |
-| GitHubIssue | Link from one ticket to one GitHub issue, with issue ID, number, URL, repository ID/name, state, and timestamps. Schema should allow several tickets to link one issue in a later duplicate-detection phase. |
-| WebhookEvent | Delivery ID, event/action, repository and issue IDs, processing status, timestamps, and a safe error summary for deduplication and diagnosis. Avoid retaining full payloads with unnecessary PII. |
-| Work item | Durable database record for classification and GitHub escalation attempts, ownership/lease, retry state, and last safe error. This is a small Postgres-backed worker/outbox, not Redis/BullMQ. |
+| Workspace | Tenant identity and display name. User and WorkspaceMember arrive with authentication later; no owner record is faked in Phase 2. |
+| Project | Website identity, allowed origins, status, and unique public widget key; belongs to one workspace. Key rotation is a later application operation. |
+| Conversation / Message | Visitor thread and immutable role-tagged messages; optional visitor name/email remain private on the conversation. Project matching is enforced by composite foreign keys. |
+| Ticket | One workflow record per conversation, with project, status, route, optional submission idempotency key/fingerprint, and separate `SUP-<number>` display reference. |
+| TicketClassification | Append-only validated decisions with source/provider/model, type, severity, policy route/recommendation, confidence, reason, and a monotonic classification number for selecting the current entry. |
+| TicketEvent | Append-only, PII-free ticket timeline metadata. |
+| GitHubIntegration | One project-to-repository connection with GitHub App installation and repository IDs; no credentials or tokens. |
+| GitHubIssue | Pending issue intent or confirmed issue link with immutable reconciliation marker and target repository. One ticket/issue pair in MVP; a later join table can support many tickets per issue. |
+| WebhookEvent | Unique provider/delivery ID and minimal processing metadata; no raw payload. |
+| Work item (later) | The durable work/outbox record remains necessary for AI and issue processing, but is deferred until those workflows are implemented. Phase 2 adds no worker or queue. |
+
+```mermaid
+erDiagram
+    WORKSPACE ||--o{ PROJECT : owns
+    PROJECT ||--o{ CONVERSATION : receives
+    CONVERSATION ||--o{ MESSAGE : contains
+    CONVERSATION ||--o| TICKET : creates
+    PROJECT ||--o{ TICKET : scopes
+    TICKET ||--o{ TICKET_CLASSIFICATION : records
+    TICKET ||--o{ TICKET_EVENT : records
+    PROJECT ||--o| GITHUB_INTEGRATION : connects
+    TICKET ||--o| GITHUB_ISSUE : reserves
+    GITHUB_INTEGRATION ||--o{ GITHUB_ISSUE : targets
+    PROJECT ||--o{ WEBHOOK_EVENT : contextualizes
+```
 
 All project-owned records carry or can be joined to `project_id`; repository methods require workspace/project context. Database foreign keys and unique constraints enforce links and idempotency keys. The owner dashboard authorizes workspace membership before project-scoped reads or writes. Repository identity is verified against the project integration when processing webhooks.
 
@@ -58,7 +73,9 @@ All project-owned records carry or can be joined to `project_id`; repository met
 5. A connected bug with high confidence, safe publication content, and policy approval gets a GitHub escalation work item. A generator may improve the issue description; a deterministic template is the fallback. No contact information or raw private conversation is published.
 6. Signed `issues` webhooks with `opened`, `edited`, `closed`, or `reopened` actions update the linked GitHubIssue and ticket timeline. Closing a linked engineering issue resolves the ticket unless an owner has deliberately put the ticket into another state; reopening restores `escalated` for a ticket resolved by that issue. `opened` and `edited` refresh issue metadata without overwriting support conversation content.
 
-Ticket status is one of `needs_triage`, `queued`, `escalation_pending`, `escalated`, `resolved`, or `quarantined`. GitHub escalation attempt status is separate: `pending`, `retry_required`, `needs_reconciliation`, `linked`, or `not_applicable`. A failed GitHub call does not invalidate or delete the ticket. The dashboard shows both statuses, so an engineering ticket can remain queued while escalation needs attention.
+Ticket status is one of `needs_triage`, `queued`, `escalation_pending`, `escalated`, `resolved`, or `quarantined`. The GitHub issue intent/link has its own pending, retry, reconciliation, open, or closed state. A failed GitHub call does not invalidate or delete the ticket. The dashboard will show both statuses, so an engineering ticket can remain queued while escalation needs attention.
+
+The Phase 2 repository implements `needs_triage → queued` and `needs_triage/queued → quarantined` through validated classification, and permits reclassification while queued or quarantined. It refuses classification from escalation or resolved states. Later services will own escalation, resolution, and reopen transitions and record corresponding events. The stored GitHub issue state uses `pending`, `retry_required`, `needs_reconciliation`, `open`, or `closed`; confirmed remote identifiers appear together.
 
 ## Idempotency and background work
 
@@ -78,4 +95,4 @@ Later phases may add knowledge articles, AI drafted/automatic answers, customer 
 
 ## Phase boundaries and deployment
 
-Phase 0 documented the architecture. Phase 1 established `apps/web` and `apps/demo`, root tooling, CI, and smoke tests. No `packages/` directories or product services exist yet. Phase 2 adds schema and migrations; Phases 3–4 widget and ingestion; Phases 5–6 triage and dashboard; Phases 7–9 GitHub and full demo. Use a disposable GitHub repository before portfolio integration. Vercel plus managed PostgreSQL is a likely deployment shape, but provider selection and credentials are operational inputs for a later phase. Each phase updates affected documents and its handoff before stopping.
+Phase 0 documented the architecture. Phase 1 established `apps/web` and `apps/demo`, root tooling, CI, and smoke tests. Phase 2 added `packages/db`, PostgreSQL 16 development/test databases, versioned migrations, seed fixtures, and project-scoped persistence methods. Phases 3–4 add widget and ingestion; Phases 5–6 triage and dashboard; Phases 7–9 GitHub and full demo. Use a disposable GitHub repository before portfolio integration. Vercel plus managed PostgreSQL is a likely deployment shape, but provider selection and credentials are operational inputs for a later phase. Each phase updates affected documents and its handoff before stopping.

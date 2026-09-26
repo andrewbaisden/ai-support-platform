@@ -1,0 +1,1 @@
+CREATE DATABASE support_platform_test;

@@ -20,11 +20,19 @@ The platform must preserve reports when Jev, the generator, or GitHub is down. I
 
 Every dashboard read/write uses the authenticated user's workspace membership and project-scoped repository method. Query by project/workspace before looking up ticket, conversation, classification, or integration IDs. Add foreign keys and unique constraints that prevent cross-project associations. Test two workspaces with similarly shaped data and assert no cross-tenant reads or writes. Bootstrap one owner; public signup and invitation flows remain disabled until explicitly implemented. Protect dashboard mutations against CSRF according to Better Auth and Next.js guidance. Never expose secrets in serialized server components or public environment variables.
 
+Phase 2 implements this boundary in `packages/db`: project reads require workspace context, and ticket/classification/message/issue links use composite project-matching foreign keys. Authentication and workspace membership remain deferred, so future callers must supply workspace context only after server-side authorization. Visitor name/email live only on private conversation rows; ticket events, classification reasons, and GitHub/webhook metadata must not copy them. The `SUP-<number>` reference and public project key do not authorize access.
+
 ## GitHub credentials, publication, and webhooks
 
 Use a GitHub App with only the selected repository access and the minimum Issues permissions. Store its private key and webhook secret in server secret storage, mint installation tokens server-side, and never persist tokens in ticket data. Verify `X-Hub-Signature-256` using HMAC-SHA256 on raw bytes with a timing-safe comparison before JSON parsing. Persist delivery ID with a unique constraint and handle repeats idempotently. Validate the event/action and ensure installation, repository ID, and issue ID match the stored integration/link before changing a ticket. [GitHub signature validation](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
 
 Before creating a GitHub issue, build a publication-safe projection of the report. Exclude name, email, account identifiers, tokens, authentication details, private URLs, and unrelated conversation messages by default. Redact detected secrets/PII from the remaining text; if redaction cannot establish a safe and useful issue, require owner review. The issue may show a platform ticket reference that is not a public link to private ticket content. Keep an explicit allowlist for labels and environment fields. Treat generated issue text as untrusted and run it through the same publication check. Document a process to correct an accidental publication rather than assuming redaction is perfect.
+
+The Phase 2 webhook table stores delivery/event identifiers, context IDs, status, timestamps, and a short safe failure code. It does not store raw webhook payloads. The GitHub integration table stores installation/repository metadata only, and pending issue rows store a reconciliation marker before a future remote call. Neither table stores a personal access token, installation token, or GitHub App private key.
+
+The Phase 4 ingestion API must compute each submission fingerprint from validated, normalized request content on the server. The repository accepts a fingerprint as an internal input, but browser-supplied fingerprints must never be trusted when deciding whether a repeated submission key matches the original request.
+
+The local Compose password and URLs in `.env.example` are development-only. `.env` is ignored. Database integration tests require `DATABASE_URL_TEST` to point to localhost and a database ending `_test` before they truncate test tables; CI uses a dedicated PostgreSQL service. Do not point this variable at a production instance.
 
 ## Logs, retention, and incident response
 
