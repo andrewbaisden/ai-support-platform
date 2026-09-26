@@ -32,6 +32,8 @@ The Phase 2 webhook table stores delivery/event identifiers, context IDs, status
 
 The Phase 4 ingestion API must compute each submission fingerprint from validated, normalized request content on the server. The repository accepts a fingerprint as an internal input, but browser-supplied fingerprints must never be trusted when deciding whether a repeated submission key matches the original request.
 
+The Phase 3 widget receives only a public project key and an injected submission client. It imports no server-only package or environment secret. Its category is a visitor hint, not an authorization or trusted classification. The demo client is local mock behavior and creates no ticket. Its ShadowRoot style element requires an inline-style compatible host Content Security Policy; test a strict-CSP consumer and choose a compatible delivery strategy before external package publication.
+
 The local Compose password and URLs in `.env.example` are development-only. `.env` is ignored. Database integration tests require `DATABASE_URL_TEST` to point to localhost and a database ending `_test` before they truncate test tables; CI uses a dedicated PostgreSQL service. Do not point this variable at a production instance.
 
 ## Logs, retention, and incident response

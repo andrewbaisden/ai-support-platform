@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 2: domain and database foundation**. The two Next.js application shells and a PostgreSQL/Drizzle package run locally. Product workflows and HTTP endpoints are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 3: internal support widget**. The demo uses a local mock submission client; ticket ingestion HTTP endpoints and live product workflows are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -26,12 +26,13 @@ The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion
 apps/web/                 Platform app shell; future UI and API
 apps/demo/                Controlled consumer app shell
 packages/db/              Drizzle schema, migrations, seed, scoped repository
-e2e/                      Browser smoke checks
+packages/widget/          Internal React support widget and bundled styles
+e2e/                      Browser smoke and widget flows
 .github/workflows/ci.yml  Repository verification
 docs/handoffs/            Phase handoffs
 ```
 
-Widget, AI, and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, Zod, Vitest, React Testing Library, and Playwright. Better Auth, shadcn/ui, React Hook Form, and TanStack Query arrive only when their features need them; Zustand is not planned.
+AI and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, React Hook Form, Zod, Vitest, React Testing Library, and Playwright. Better Auth, shadcn/ui, and TanStack Query arrive only when their features need them; Zustand is not planned.
 
 ## Local development
 
@@ -43,6 +44,23 @@ pnpm dev
 ```
 
 The platform shell runs at `http://127.0.0.1:3000`; the demo runs at `http://127.0.0.1:3001`. `pnpm dev:web` and `pnpm dev:demo` run them individually.
+
+The demo exercises the internal widget with light/dark/system themes, left/right positioning, and a mock failure toggle. It sends no ticket to the backend. The package builds before the demo starts and exports compiled JavaScript and TypeScript declarations.
+
+```tsx
+import { SupportWidget, type SupportSubmissionClient } from "@ai-support-platform/widget";
+
+const submissionClient: SupportSubmissionClient = {
+  async submit(_input) {
+    // Supply a local mock in Phase 3; the public API adapter arrives in Phase 4.
+    return { reference: "SUP-DEMO-001" };
+  },
+};
+
+<SupportWidget projectKey="pk_..." submissionClient={submissionClient} />;
+```
+
+The widget supports `position`, `theme`, `categories`, `title`, and `defaultOpen`. Its styles are bundled into the component and injected into a Shadow DOM, so consumers need no stylesheet or Tailwind configuration. The project key is public identification, not authorization. Demo references are visibly fake and no backend ticket is created.
 
 ```sh
 pnpm lint
@@ -83,7 +101,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 3 starts only after review of the Phase 2 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 4 begins only after review of the Phase 3 handoff.
 
 ## Documentation
 

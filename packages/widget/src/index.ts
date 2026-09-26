@@ -1,0 +1,12 @@
+"use client";
+
+export { SupportWidget } from "./support-widget";
+export type {
+  SupportCategory,
+  SupportSubmissionClient,
+  SupportSubmissionInput,
+  SupportSubmissionResult,
+  SupportWidgetProps,
+  WidgetPosition,
+  WidgetTheme,
+} from "./types";

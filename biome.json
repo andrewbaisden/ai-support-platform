@@ -14,6 +14,7 @@
     "includes": [
       "**",
       "!**/.next",
+      "!**/dist",
       "!**/node_modules",
       "!**/coverage",
       "!**/test-results",

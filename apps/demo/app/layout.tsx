@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Demo Consumer",
-  description: "Controlled consumer for the future support widget.",
+  description: "Controlled consumer for the internal support widget.",
 };
 
 export default function RootLayout({

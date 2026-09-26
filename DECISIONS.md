@@ -102,6 +102,14 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** A timestamp alone can tie within a transaction and does not identify the latest decision reliably. The number is internal ordering, not a public ID. Historical rows make later corrections and provider comparisons auditable without overwriting a prior decision.
 
+## ADR-015 — Shadow DOM styles and a submission client boundary
+
+**Decision:** The internal React widget uses a ShadowRoot and bundles its CSS text with its JavaScript entry, injecting one style element per widget instance. Consumers need no Tailwind configuration or separate stylesheet. A required `SupportSubmissionClient` supplies submissions in Phase 3; the demo provides a mock, and Phase 4 adds an HTTP adapter. The public component accepts only project key, position, theme, visible categories, title, and default-open options.
+
+**Why:** Arbitrary host CSS can change controls, typography, and box sizing. Shadow DOM provides strong style isolation with a small package boundary and no iframe messaging or host build requirements. An adapter makes failure/retry behavior testable without implementing the API ahead of its phase. A bundled style string makes external installation straightforward, though it may be revisited during package hardening if bundle size or content-security policies require an external CSS asset.
+
+**Consequence:** The host must allow inline styles under its Content Security Policy for this first version. Phase 11 must test a strict CSP consumer and choose a compatible stylesheet or nonce strategy before npm publication. The browser key remains public identification and the demo reference is fake. React and React DOM are peers; the package does not depend on Next.js, the database, or platform secrets.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed before the optional live classifier test in Phase 5.

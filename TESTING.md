@@ -1,6 +1,6 @@
 # Testing strategy
 
-Phase 2 adds real PostgreSQL integration coverage to the Phase 1 test runners. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
+Phase 3 adds widget component and browser coverage to the existing unit and PostgreSQL test runners. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
 
 ## Commands available now
 
@@ -16,7 +16,7 @@ pnpm test:e2e
 git diff --check
 ```
 
-`pnpm test` runs database-free Vitest with React Testing Library in jsdom. `pnpm test:db` requires the isolated local PostgreSQL test database; it applies checked-in migrations and truncates only test tables between cases. Before testing locally, copy `.env.example` to `.env` and run `pnpm db:up`. The test URL guard rejects nonlocal hosts, names not ending `_test`, and the development URL. `pnpm db:check` validates the Drizzle migration history. `pnpm test:e2e` starts both apps and runs the Playwright Chromium smoke test; install Chromium first with `pnpm exec playwright install chromium` if needed. `pnpm typecheck` checks root tooling, both apps after `next typegen`, and `packages/db`. CI runs unit, database integration, migration check, and build checks with a PostgreSQL 16 service; browser tests remain a separate local gate.
+`pnpm test` runs database-free Vitest with React Testing Library in jsdom, including widget flows inside its ShadowRoot. `pnpm test:db` requires the isolated local PostgreSQL test database; it applies checked-in migrations and truncates only test tables between cases. Before testing locally, copy `.env.example` to `.env` and run `pnpm db:up`. The test URL guard rejects nonlocal hosts, names not ending `_test`, and the development URL. `pnpm db:check` validates the Drizzle migration history. `pnpm test:e2e` starts both apps and runs Playwright Chromium checks for app shells, desktop bug submission, and mobile dark-theme failure/retry; install Chromium first with `pnpm exec playwright install chromium` if needed. `pnpm typecheck` checks root tooling, `packages/widget`, both apps after `next typegen`, and `packages/db`. CI runs unit, database integration, migration check, and build checks with a PostgreSQL 16 service; browser tests remain a separate local gate.
 
 ## Layers
 
@@ -46,7 +46,8 @@ Add fixtures for category-hint disagreement, ambiguous bug reports, private toke
 - **Phase 0:** All requested documents exist, agree on MVP scope and state flow, cite current Jev/GitHub integration sources, and name unresolved operational inputs. No application scaffold or dependencies are added.
 - **Phase 1:** `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test` work as documented. CI runs build, typecheck, lint, and tests; Playwright verifies both shells locally.
 - **Phase 2:** Fresh PostgreSQL volume migrates and seeds; repeated seed is idempotent; migration generation reports no drift; six database integration cases cover constraints, transactions, idempotency, and tenant isolation.
-- **Phases 3–4:** Demo widget submits to API and receives the same ticket on idempotent retry; accessibility and API error paths pass.
+- **Phase 3:** Internal widget builds independently, runs in the demo through its package export, validates fields, handles success/error/retry, and passes keyboard/focus plus desktop/mobile browser checks against a mock client.
+- **Phase 4:** Demo widget submits to the public API and receives the same ticket on idempotent retry; API validation and abuse/error paths pass.
 - **Phases 5–6:** Validated classification persists, deterministic routes are correct, AI failures leave an actionable ticket, and owner dashboard shows history.
 - **Phases 7–9:** Exactly one linked issue is created for an eligible demo bug; uncertain creates require reconciliation; signed, duplicate, wrong-repository, closed, and reopened webhooks behave correctly. Questions, features, and spam create no engineering issue.
 - **Phase 10 onward:** Review security, failure recovery, privacy, accessibility, external package installation, and production behavior before publication or portfolio use.
