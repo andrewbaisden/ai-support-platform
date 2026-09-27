@@ -1,5 +1,6 @@
 import { App } from "@octokit/app";
 import { GithubError, mapRequestError } from "./errors";
+import { trustedReconciliationIssue } from "./reconciliation";
 import type { CreatedIssue, IssueTrackerClient, TrackerFactory } from "./types";
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -99,6 +100,25 @@ export function createTrackerFactory(options: {
         throw toGithubError(error);
       }
       return {
+        async verifyRepository(input) {
+          try {
+            const response = await withTimeout(
+              "verify repository",
+              octokit.request("GET /repos/{owner}/{repo}", {
+                owner: input.owner,
+                repo: input.repo,
+              }),
+            );
+            if (String(response.data.id) !== input.repositoryId) {
+              throw new GithubError(
+                "GITHUB_REPOSITORY_NOT_FOUND",
+                "Configured repository identity mismatch",
+              );
+            }
+          } catch (error) {
+            throw toGithubError(error);
+          }
+        },
         async createIssue(input) {
           try {
             const response = await withTimeout(
@@ -124,6 +144,17 @@ export function createTrackerFactory(options: {
         },
         async findIssueByMarker(input) {
           try {
+            const appResponse = await withTimeout(
+              "app identity",
+              app.octokit.request("GET /app"),
+            );
+            const appSlug = appResponse.data?.slug;
+            if (typeof appSlug !== "string" || !appSlug) {
+              throw new GithubError(
+                "GITHUB_INVALID_RESPONSE",
+                "App identity unavailable",
+              );
+            }
             for (let page = 1; page <= RECONCILE_PAGES; page++) {
               const response = await withTimeout(
                 "reconcile issues",
@@ -139,17 +170,12 @@ export function createTrackerFactory(options: {
               );
               const issues = Array.isArray(response.data) ? response.data : [];
               for (const issue of issues) {
-                const body =
-                  typeof issue === "object" && issue !== null
-                    ? (issue as { body?: unknown }).body
-                    : undefined;
-                if (typeof body === "string" && body.includes(input.marker)) {
-                  return createdIssueSchema.parse({
-                    id: (issue as { id: unknown }).id,
-                    number: (issue as { number: unknown }).number,
-                    html_url: (issue as { html_url: unknown }).html_url,
-                  });
-                }
+                const trusted = trustedReconciliationIssue(
+                  issue,
+                  input.marker,
+                  appSlug,
+                );
+                if (trusted) return trusted;
               }
               if (issues.length < RECONCILE_PER_PAGE) break;
             }

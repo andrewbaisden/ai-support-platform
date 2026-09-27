@@ -113,8 +113,9 @@ export function GitHubSection({
       {initial.state === "unknown" && (
         <div>
           <p role="alert" className="text-amber-800">
-            A previous creation attempt has unknown outcome. Retrying first
-            reconciles by marker, never blind-retries.
+            A previous creation attempt has unknown outcome. This check looks
+            for an issue created by this GitHub App. If none is found, an
+            operator must reconcile before another create.
           </p>
           <button
             type="button"
@@ -122,9 +123,15 @@ export function GitHubSection({
             onClick={() => void create()}
             className="mt-2 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {pending ? "Reconciling…" : "Reconcile and retry"}
+            {pending ? "Checking…" : "Check for existing issue"}
           </button>
         </div>
+      )}
+      {initial.state === "in-progress" && (
+        <p role="status" className="text-amber-800">
+          GitHub issue creation is in progress. Refresh after it finishes. If it
+          stays here, an operator must reconcile the remote result.
+        </p>
       )}
       {initial.state === "blocked" && (
         <div role="status" className="text-slate-600">

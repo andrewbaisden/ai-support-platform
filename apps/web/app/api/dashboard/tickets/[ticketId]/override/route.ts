@@ -53,7 +53,9 @@ export async function POST(
   const eventType =
     ticket.status === "quarantined" && body.data.status === "queued"
       ? "released_from_quarantine"
-      : "rerouted";
+      : ticket.status === "resolved" && body.data.status === "queued"
+        ? "reopened"
+        : "rerouted";
   await scoped.repository.recordTicketOverride(
     scoped.access.workspaceId,
     {

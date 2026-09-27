@@ -53,3 +53,7 @@ The secret and raw payload are never logged or stored; safe logs contain deliver
 ## Exact recommended Phase 9 starting point
 
 After owner approval and a disposable-repository live close/reopen validation, complete the controlled demo journey end to end and address observed operational gaps. Begin by checking delivery latency, GitHub Recent Deliveries, out-of-order event exposure, and unresolved Phase 7 reconciliation. Keep generative replies, comment synchronization, notifications, automatic escalation, npm publication, and portfolio installation outside Phase 9 unless separately approved by the owner.
+
+## Post-handoff review addendum
+
+A focused [Grok findings review](../reviews/phase-08-grok-review.md) validated and corrected concurrent outbound creation, partial override precedence, untrusted reconciliation, review-only event provenance, issue-body Markdown, repository identity verification at escalation, and production mock selection. Reviewed migrations `0004`/`0005` add the exclusive `creating` state and monotonic audit order. The original Phase 8 verification table above describes the first handoff; the review file records the follow-up checks and remaining production work. This is not Phase 9.

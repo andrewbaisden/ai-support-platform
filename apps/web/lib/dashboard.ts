@@ -186,6 +186,7 @@ export async function getTicketDetail(
     history,
     events,
     override,
+    effectiveOverride: override?.effective ?? null,
     integration: integration
       ? {
           repositoryOwner: integration.repositoryOwner,
@@ -200,9 +201,9 @@ export async function getTicketDetail(
       classification
         ? { githubIssueRecommended: classification.githubIssueRecommended }
         : null,
-      override?.override
+      override?.effective
         ? {
-            githubIssueRecommended: override.override.githubIssueRecommended,
+            githubIssueRecommended: override.effective.githubIssueRecommended,
           }
         : null,
     ),

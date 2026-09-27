@@ -11,9 +11,16 @@ export const ISSUE_LABEL_ALLOWLIST = [
 const TITLE_MAX = 80;
 const BODY_REPORT_MAX = 4000;
 
-/** Stable non-sensitive marker; the SUP reference grants no access. */
-export function markerForTicket(ticketReference: string): string {
-  return `<!-- ai-support-ticket:${ticketReference} -->`;
+/** Opaque marker derived from a private random ticket UUID. */
+export function markerForTicket(
+  ticketReference: string,
+  ticketId: string,
+): string {
+  const nonce = createHash("sha256")
+    .update(ticketId)
+    .digest("hex")
+    .slice(0, 32);
+  return `<!-- ai-support-ticket:${ticketReference}:${nonce} -->`;
 }
 
 function excerpt(message: string): string {
@@ -38,6 +45,8 @@ export function labelsFor(severity: Severity): string[] {
 }
 
 export interface DraftInput {
+  ticketId: string;
+  marker?: string;
   ticketReference: string;
   categoryHint: string | null;
   message: string;
@@ -53,6 +62,8 @@ export interface DraftInput {
  * no contact details, no internal IDs, no classification history.
  */
 export function buildIssueDraft(input: DraftInput): IssueDraft {
+  const marker =
+    input.marker ?? markerForTicket(input.ticketReference, input.ticketId);
   const short = excerpt(input.message);
   const title = short
     ? `[${input.ticketReference}] Reported bug: ${short}`
@@ -61,6 +72,11 @@ export function buildIssueDraft(input: DraftInput): IssueDraft {
     input.message.length > BODY_REPORT_MAX
       ? `${input.message.slice(0, BODY_REPORT_MAX).trimEnd()}\n\n[truncated]`
       : input.message;
+  const longestBackticks = Math.max(
+    0,
+    ...(report.match(/`+/g) ?? []).map((run) => run.length),
+  );
+  const fence = "`".repeat(Math.max(4, longestBackticks + 1));
   const body = [
     "## Summary",
     "",
@@ -68,7 +84,9 @@ export function buildIssueDraft(input: DraftInput): IssueDraft {
     "",
     "## Report",
     "",
+    fence,
     report,
+    fence,
     "",
     "## Context",
     "",
@@ -82,13 +100,15 @@ export function buildIssueDraft(input: DraftInput): IssueDraft {
     "",
     "Reported through the AI Support Platform. Contact details are never published.",
     "",
-    markerForTicket(input.ticketReference),
+    marker,
     "",
   ].join("\n");
   return {
     title,
     body,
     labels: labelsFor(input.severity),
-    marker: markerForTicket(input.ticketReference),
+    marker,
   };
 }
+
+import { createHash } from "node:crypto";

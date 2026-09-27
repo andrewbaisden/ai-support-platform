@@ -1,0 +1,4 @@
+ALTER TABLE "github_issues" DROP CONSTRAINT "github_issues_status_check";--> statement-breakpoint
+ALTER TABLE "github_issues" DROP CONSTRAINT "github_issues_remote_pair_check";--> statement-breakpoint
+ALTER TABLE "github_issues" ADD CONSTRAINT "github_issues_status_check" CHECK ("github_issues"."status" IN ('pending', 'creating', 'retry_required', 'needs_reconciliation', 'open', 'closed'));--> statement-breakpoint
+ALTER TABLE "github_issues" ADD CONSTRAINT "github_issues_remote_pair_check" CHECK (("github_issues"."github_issue_id" IS NULL AND "github_issues"."issue_number" IS NULL AND "github_issues"."url" IS NULL AND "github_issues"."status" IN ('pending', 'creating', 'retry_required', 'needs_reconciliation')) OR ("github_issues"."github_issue_id" IS NOT NULL AND "github_issues"."issue_number" IS NOT NULL AND "github_issues"."url" IS NOT NULL AND "github_issues"."status" IN ('open', 'closed')));

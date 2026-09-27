@@ -105,6 +105,7 @@ const port: EscalationRepository = {
       throw new Error("Reservation conflict without existing link");
     }
   },
+  claimIssueCreation: (input) => support.claimGitHubIssueCreation(input),
   confirmIssueLink: async (input) => {
     await support.confirmGitHubIssue({
       workspaceId: input.workspaceId,
@@ -207,6 +208,7 @@ async function escalationInput(
     ticketNumber: full.ticketNumber,
     ticketReference: ticketReference(full.ticketNumber),
     status: full.status,
+    route: full.route,
     reportedAt: full.createdAt,
     message: submission.message,
     categoryHint: submission.categoryHint,
@@ -217,10 +219,10 @@ async function escalationInput(
       route: classification.route,
       githubIssueRecommended: classification.githubIssueRecommended,
     },
-    override: override?.override
+    override: override?.effective
       ? {
-          route: override.override.route,
-          githubIssueRecommended: override.override.githubIssueRecommended,
+          route: override.effective.route,
+          githubIssueRecommended: override.effective.githubIssueRecommended,
         }
       : null,
   };
@@ -280,6 +282,54 @@ describe("escalation persistence", () => {
     expect(factory.created).toHaveLength(1);
   });
 
+  it("allows one remote create under concurrent confirmations", async () => {
+    const { workspace, project } = await setupProject();
+    const ticket = await submitBug(workspace.id, project.id);
+    const input = await escalationInput(workspace.id, ticket);
+    const factory = createMockTrackerFactory();
+    const outcomes = await Promise.all([
+      escalateTicketToGitHub({
+        repository: port,
+        trackers: factory,
+        ticket: input,
+      }),
+      escalateTicketToGitHub({
+        repository: port,
+        trackers: factory,
+        ticket: input,
+      }),
+    ]);
+    expect(factory.created).toHaveLength(1);
+    expect(
+      outcomes.filter((outcome) => outcome.outcome === "created"),
+    ).toHaveLength(1);
+    const link = await support.getGitHubIssueForTicket(
+      workspace.id,
+      project.id,
+      ticket.id,
+    );
+    expect(link?.githubIssueId).not.toBeNull();
+    await expect(
+      support.confirmGitHubIssue({
+        workspaceId: workspace.id,
+        projectId: project.id,
+        ticketId: ticket.id,
+        githubIssueId: 999999n,
+        issueNumber: 999,
+        url: "https://github.com/demo/disposable/issues/999",
+      }),
+    ).rejects.toThrow("already confirmed");
+    expect(
+      (
+        await support.getGitHubIssueForTicket(
+          workspace.id,
+          project.id,
+          ticket.id,
+        )
+      )?.githubIssueId,
+    ).toBe(link?.githubIssueId);
+  });
+
   it("honors a human decline and isolates other projects", async () => {
     const { workspace, project } = await setupProject();
     const otherWorkspace = await support.createWorkspace("Other workspace");
@@ -310,6 +360,21 @@ describe("escalation persistence", () => {
       },
       "rerouted",
     );
+    await support.recordTicketOverride(
+      workspace.id,
+      {
+        projectId: project.id,
+        ticketId: ticket.id,
+        decidedBy: owner.id,
+        route: "support",
+        reason: "Route report to support without changing the GitHub decision.",
+      },
+      "rerouted",
+    );
+    expect(
+      (await support.getLatestOverride(workspace.id, project.id, ticket.id))
+        ?.effective.githubIssueRecommended,
+    ).toBe(false);
     const factory = createMockTrackerFactory();
     const declined = await escalateTicketToGitHub({
       repository: port,

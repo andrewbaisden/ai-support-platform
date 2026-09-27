@@ -11,7 +11,10 @@ import {
  * use the GitHub App factory, which holds installation tokens in memory only.
  */
 export function createEscalationTrackers(): TrackerFactory {
-  if (process.env.GITHUB_ESCALATION_MOCK === "1") {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.GITHUB_ESCALATION_MOCK === "1"
+  ) {
     return createMockTrackerFactory();
   }
   const appId = process.env.GITHUB_APP_ID;

@@ -205,4 +205,46 @@ describe("webhook transaction", () => {
     );
     expect(result.outcome).toBe("ignored");
   });
+
+  it("keeps GitHub resolution provenance after a review-only event", async () => {
+    const { workspace, project, ticket } = await linkedTicket();
+    await close(randomUUID());
+    await support.recordTicketEvent({
+      projectId: project.id,
+      ticketId: ticket.id,
+      type: "rerouted",
+      summary: "Human reviewed the route without changing status.",
+    });
+    const result = await support.withGitHubWebhookDelivery(
+      {
+        deliveryId: randomUUID(),
+        eventType: "issues",
+        action: "reopened",
+        repositoryId: 20n,
+        githubIssueId: 30n,
+        installationId: 10n,
+      },
+      async (scope) => {
+        const link = await scope.findLink({
+          repositoryId: 20n,
+          githubIssueId: 30n,
+        });
+        expect(link?.latestStatusEvent).toBe("ticket_resolved_from_github");
+        if (!link) throw new Error("fixture link missing");
+        await scope.setIssueState(link.issueId, "open");
+        await scope.setTicketStatus(
+          link.ticketId,
+          "queued",
+          "ticket_reopened_from_github",
+          "Reopened from GitHub",
+        );
+        return { outcome: "processed" as const };
+      },
+    );
+    expect(result.outcome).toBe("processed");
+    expect(
+      (await support.getTicketForProject(workspace.id, project.id, ticket.id))
+        ?.status,
+    ).toBe("queued");
+  });
 });

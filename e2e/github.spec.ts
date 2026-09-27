@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   type APIRequestContext,
   expect,
@@ -139,7 +139,13 @@ test("signed issue close and reopen update the dashboard", async ({
   );
   await page.waitForLoadState("networkidle");
   await clickCreateUntilSuccess(page);
-  const marker = `<!-- ai-support-ticket:${reference} -->`;
+  const ticketId = new URL(page.url()).pathname.split("/").at(-1);
+  if (!ticketId) throw new Error("Ticket URL missing ID");
+  const nonce = createHash("sha256")
+    .update(ticketId)
+    .digest("hex")
+    .slice(0, 32);
+  const marker = `<!-- ai-support-ticket:${reference}:${nonce} -->`;
   let hash = 0x811c9dc5;
   for (const char of `example/disposable/${marker}`) {
     hash ^= char.charCodeAt(0);

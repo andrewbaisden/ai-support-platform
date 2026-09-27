@@ -64,6 +64,7 @@ export function createMockTrackerFactory(
   const next = (): MockScenario =>
     scenarios[Math.min(calls, scenarios.length - 1)] ?? { kind: "success" };
   const client: IssueTrackerClient = {
+    async verifyRepository() {},
     async createIssue(input) {
       const scenario = next();
       calls += 1;
@@ -124,7 +125,9 @@ export function createMockTrackerFactory(
         (issue) =>
           issue.owner === input.owner &&
           issue.repo === input.repo &&
-          issue.body.includes(input.marker),
+          issue.body
+            .split(/\r?\n/)
+            .some((line) => line.trim() === input.marker),
       );
       return match
         ? mockIssueFor(input.owner, input.repo, input.marker)

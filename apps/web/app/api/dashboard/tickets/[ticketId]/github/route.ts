@@ -74,6 +74,7 @@ function escalationPort(): EscalationRepository {
         throw new Error("Reservation conflict without existing link");
       }
     },
+    claimIssueCreation: (input) => repository.claimGitHubIssueCreation(input),
     confirmIssueLink: async (input) => {
       await repository.confirmGitHubIssue({
         workspaceId: input.workspaceId,
@@ -122,6 +123,7 @@ async function escalationTicket(
     ticketNumber: ticket.ticketNumber,
     ticketReference: ticketReference(ticket.ticketNumber),
     status: ticket.status,
+    route: ticket.route,
     reportedAt: ticket.createdAt,
     message: submission.message,
     categoryHint: submission.categoryHint,
@@ -134,10 +136,10 @@ async function escalationTicket(
           githubIssueRecommended: classification.githubIssueRecommended,
         }
       : null,
-    override: override?.override
+    override: override?.effective
       ? {
-          route: override.override.route,
-          githubIssueRecommended: override.override.githubIssueRecommended,
+          route: override.effective.route,
+          githubIssueRecommended: override.effective.githubIssueRecommended,
         }
       : null,
   };

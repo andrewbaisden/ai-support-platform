@@ -150,6 +150,14 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** A transient failure rolls back and returns 503. GitHub does not automatically redeliver failures, so operational redelivery is required. Distinct out-of-order events are a known limitation pending a reliable remote-state reconciliation strategy. The 1 MiB cap and synchronous work must be monitored against GitHub's 10-second response target. No comments, metadata edits, customer notifications, or marker-only linking are implemented.
 
+## ADR-021 — Exclusive GitHub creation and trusted reconciliation
+
+**Decision:** Add a `creating` issue-intent state and atomically claim it before any GitHub call. Only the claimant may reconcile or create. Keep ambiguous outcomes in `needs_reconciliation`; a missing reconciliation hit cannot start another create. Confirmation is conditional on a null remote ID. Derive an opaque marker from the private random ticket UUID, and reconcile only an exact standalone marker on a non-PR issue authored by this App bot after verifying the repository ID with the installation token. Read effective human decisions field-by-field by monotonic `decision_number` and use the materialized ticket route. Order ticket status provenance by monotonic `event_number` and ignore review-only `rerouted` events. The privacy gate blocks sensitive URLs, phone-shaped numbers, and JWTs; visitor Markdown is fenced.
+
+**Why:** A unique intent row alone does not serialize remote creation. A response timeout or process crash cannot prove whether GitHub created the issue. Sequential references do not authenticate a reconciliation candidate. Partial override rows and timestamp ties do not reliably express latest human intent or resolution provenance.
+
+**Consequence:** Migration `0004` adds `creating` to the GitHub issue check constraints; migration `0005` adds ordered audit numbers. A crash in `creating` requires operator reconciliation rather than automatic re-creation. Live App bot identity still needs disposable-repository verification. Existing confirmed links remain valid; old unconfirmed markers can be searched only with the strict App-author check. See [the review](docs/reviews/phase-08-grok-review.md) for deferred findings.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.

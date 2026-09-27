@@ -6,6 +6,9 @@ describe("privacy screen", () => {
     expect(
       screenReport("The projects section becomes blank in Safari dark mode."),
     ).toEqual({ safe: true, findings: [] });
+    expect(
+      screenReport("Probe b988d97b-104b-4167-9913-3a915a7f48d0 failed."),
+    ).toEqual({ safe: true, findings: [] });
   });
 
   it("blocks emails, keys, tokens, credentials, and card numbers", () => {
@@ -35,6 +38,26 @@ describe("privacy screen", () => {
     );
     expect(JSON.stringify(screen)).not.toContain("ada@example.com");
     expect(JSON.stringify(screen)).not.toContain("ghp_abcdefgh12345678");
+  });
+
+  it("blocks private URLs, phone numbers, and JWT-shaped credentials", () => {
+    expect(screenReport("See http://localhost:3000/admin").findings).toContain(
+      "private-url",
+    );
+    expect(
+      screenReport("See https://hooks.slack.com/services/T/B/secret").findings,
+    ).toContain("private-url");
+    expect(
+      screenReport("See https://example.com/?token=abc").findings,
+    ).toContain("private-url");
+    expect(screenReport("Call +44 7700 900123").findings).toContain(
+      "phone-number",
+    );
+    expect(
+      screenReport(
+        "JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature",
+      ).findings,
+    ).toContain("jwt");
   });
 
   it("redacts emails from excerpts without deciding policy", () => {

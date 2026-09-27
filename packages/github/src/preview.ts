@@ -7,8 +7,10 @@ import { screenReport } from "./privacy";
 import type { IssueDraft } from "./types";
 
 export interface PreviewTicket {
+  ticketId: string;
   ticketReference: string;
   status: string;
+  route: string | null;
   reportedAt: Date;
   message: string;
   categoryHint: string | null;
@@ -49,6 +51,7 @@ export type EscalationPreview =
       issue: { number: number | null; url: string | null };
     }
   | { state: "unknown" }
+  | { state: "in-progress" }
   | {
       state: "eligible";
       repository: { owner: string; repo: string };
@@ -82,7 +85,10 @@ export function previewEscalation(input: {
       issue: { number: link.issueNumber, url: link.url },
     };
   }
-  if (link && link.status === "needs_reconciliation") {
+  if (link?.status === "creating") {
+    return { state: "in-progress" };
+  }
+  if (link?.status === "needs_reconciliation") {
     return { state: "unknown" };
   }
   const classification = ticket.classification;
@@ -93,7 +99,7 @@ export function previewEscalation(input: {
       reasons: ["ticket is not a classified queued ticket"],
     };
   }
-  const route = ticket.override?.route ?? classification.route;
+  const route = ticket.route;
   if (ticket.override?.githubIssueRecommended === false) {
     return {
       state: "blocked",
@@ -129,6 +135,7 @@ export function previewEscalation(input: {
     };
   }
   const draft = buildIssueDraft({
+    ticketId: ticket.ticketId,
     ticketReference: ticket.ticketReference,
     categoryHint: ticket.categoryHint,
     message: ticket.message,

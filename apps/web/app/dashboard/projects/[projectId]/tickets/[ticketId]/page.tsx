@@ -57,8 +57,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
   } = detail;
   const githubPreview = previewEscalation({
     ticket: {
+      ticketId: ticket.id,
       ticketReference: ticketReference(ticket.ticketNumber),
       status: ticket.status,
+      route: ticket.route,
       reportedAt: ticket.createdAt,
       message: message ?? "",
       categoryHint: ticket.categoryHint,
@@ -71,10 +73,11 @@ export default async function TicketDetailPage({ params }: PageProps) {
             githubIssueRecommended: classification.githubIssueRecommended,
           }
         : null,
-      override: override?.override
+      override: detail.effectiveOverride
         ? {
-            route: override.override.route,
-            githubIssueRecommended: override.override.githubIssueRecommended,
+            route: detail.effectiveOverride.route,
+            githubIssueRecommended:
+              detail.effectiveOverride.githubIssueRecommended,
           }
         : null,
     },

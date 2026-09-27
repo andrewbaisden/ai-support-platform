@@ -50,6 +50,7 @@ export const classificationSources = [
 ] as const;
 export const githubIssueStatuses = [
   "pending",
+  "creating",
   "retry_required",
   "needs_reconciliation",
   "open",
@@ -185,6 +186,7 @@ export const ticketOverrides = pgTable(
   "ticket_overrides",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    decisionNumber: bigserial("decision_number", { mode: "number" }).notNull(),
     projectId: uuid("project_id").notNull(),
     ticketId: uuid("ticket_id").notNull(),
     decidedBy: text("decided_by")
@@ -452,6 +454,7 @@ export const ticketEvents = pgTable(
   "ticket_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    eventNumber: bigserial("event_number", { mode: "number" }).notNull(),
     projectId: uuid("project_id").notNull(),
     ticketId: uuid("ticket_id").notNull(),
     type: text("type").notNull(),
@@ -557,7 +560,7 @@ export const githubIssues = pgTable(
     ),
     check(
       "github_issues_status_check",
-      sql`${table.status} IN ('pending', 'retry_required', 'needs_reconciliation', 'open', 'closed')`,
+      sql`${table.status} IN ('pending', 'creating', 'retry_required', 'needs_reconciliation', 'open', 'closed')`,
     ),
     check(
       "github_issues_number_check",
@@ -565,7 +568,7 @@ export const githubIssues = pgTable(
     ),
     check(
       "github_issues_remote_pair_check",
-      sql`(${table.githubIssueId} IS NULL AND ${table.issueNumber} IS NULL AND ${table.url} IS NULL AND ${table.status} IN ('pending', 'retry_required', 'needs_reconciliation')) OR (${table.githubIssueId} IS NOT NULL AND ${table.issueNumber} IS NOT NULL AND ${table.url} IS NOT NULL AND ${table.status} IN ('open', 'closed'))`,
+      sql`(${table.githubIssueId} IS NULL AND ${table.issueNumber} IS NULL AND ${table.url} IS NULL AND ${table.status} IN ('pending', 'creating', 'retry_required', 'needs_reconciliation')) OR (${table.githubIssueId} IS NOT NULL AND ${table.issueNumber} IS NOT NULL AND ${table.url} IS NOT NULL AND ${table.status} IN ('open', 'closed'))`,
     ),
   ],
 );

@@ -4,7 +4,10 @@ export interface PrivacyFinding {
     | "private-key"
     | "api-token"
     | "credential-assignment"
-    | "card-number";
+    | "card-number"
+    | "private-url"
+    | "phone-number"
+    | "jwt";
 }
 
 const CHECKS: Array<{ kind: PrivacyFinding["kind"]; pattern: RegExp }> = [
@@ -27,7 +30,37 @@ const CHECKS: Array<{ kind: PrivacyFinding["kind"]; pattern: RegExp }> = [
     kind: "card-number",
     pattern: /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/,
   },
+  {
+    kind: "phone-number",
+    pattern: /(?<![\w-])\+?(?:\d[\s().-]?){8,14}\d(?![\w-])/,
+  },
+  {
+    kind: "jwt",
+    pattern: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\b/,
+  },
 ];
+
+function containsPrivateUrl(message: string): boolean {
+  const urls = message.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+  return urls.some((raw) => {
+    try {
+      const url = new URL(raw.replace(/[.,;!?)]*$/, ""));
+      const host = url.hostname.toLowerCase();
+      return (
+        Boolean(url.username || url.password) ||
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host.endsWith(".internal") ||
+        host.endsWith(".local") ||
+        /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+        host === "hooks.slack.com" ||
+        /\b(token|secret|key|auth|signature|password)\b/i.test(url.search)
+      );
+    } catch {
+      return true;
+    }
+  });
+}
 
 export interface PrivacyScreen {
   safe: boolean;
@@ -44,6 +77,7 @@ export function screenReport(message: string): PrivacyScreen {
   const findings = CHECKS.filter((check) => check.pattern.test(message)).map(
     (check) => check.kind,
   );
+  if (containsPrivateUrl(message)) findings.push("private-url");
   return { safe: findings.length === 0, findings };
 }
 

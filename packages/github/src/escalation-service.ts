@@ -22,6 +22,7 @@ export interface EscalationTicket {
   ticketNumber: number;
   ticketReference: string;
   status: string;
+  route: string | null;
   reportedAt: Date;
   message: string;
   categoryHint: string | null;
@@ -69,6 +70,14 @@ export interface EscalationRepository {
     ticketId: string;
     reconciliationMarker: string;
   }): Promise<void>;
+  claimIssueCreation(input: {
+    workspaceId: string;
+    projectId: string;
+    ticketId: string;
+  }): Promise<
+    | { claimed: true; previousStatus: string; marker: string }
+    | { claimed: false; status: string }
+  >;
   confirmIssueLink(input: {
     workspaceId: string;
     projectId: string;
@@ -114,9 +123,8 @@ export interface EscalationRequest {
 }
 
 /**
- * Create one GitHub issue for an eligible ticket. Every attempt reconciles
- * by marker before creating, so retries and double-clicks converge instead
- * of duplicating. Human overrides win over AI recommendations.
+ * A durable claim allows only one request to reach GitHub creation.
+ * Ambiguous outcomes reconcile but never create from an uncertain state.
  */
 export async function escalateTicketToGitHub(
   request: EscalationRequest,
@@ -139,7 +147,7 @@ export async function escalateTicketToGitHub(
       reasons: ["ticket is not a classified queued ticket"],
     };
   }
-  const route = ticket.override?.route ?? classification.route;
+  const route = ticket.route;
   const recommended =
     ticket.override?.githubIssueRecommended ??
     classification.githubIssueRecommended;
@@ -182,7 +190,9 @@ export async function escalateTicketToGitHub(
   );
   if (
     existing &&
-    (existing.issueNumber !== null || existing.status === "open")
+    (existing.issueNumber !== null ||
+      existing.status === "open" ||
+      existing.status === "closed")
   ) {
     return {
       outcome: "already-linked",
@@ -205,40 +215,72 @@ export async function escalateTicketToGitHub(
     };
   }
 
-  let tracker: IssueTrackerClient;
-  try {
-    tracker = await request.trackers.forInstallation(
-      integration.installationId,
+  await repository.reserveIssueLink({
+    workspaceId: ticket.workspaceId,
+    projectId: ticket.projectId,
+    ticketId: ticket.ticketId,
+    reconciliationMarker: markerForTicket(
+      ticket.ticketReference,
+      ticket.ticketId,
+    ),
+  });
+  const claim = await repository.claimIssueCreation({
+    workspaceId: ticket.workspaceId,
+    projectId: ticket.projectId,
+    ticketId: ticket.ticketId,
+  });
+  if (!claim.claimed) {
+    const linked = await repository.getIssueLink(
+      ticket.workspaceId,
+      ticket.projectId,
+      ticket.ticketId,
     );
-  } catch (error) {
-    const code =
-      error instanceof GithubError ? error.code : "GITHUB_MISCONFIGURED";
-    await repository.recordEvent({
-      projectId: ticket.projectId,
-      ticketId: ticket.ticketId,
-      type: ESCALATION_EVENTS.failed,
-      summary: `GitHub client failed: ${code}.`,
-    });
-    return { outcome: "failed", code };
+    if (linked?.issueNumber !== null && linked?.issueNumber !== undefined) {
+      return {
+        outcome: "already-linked",
+        issue: { number: linked.issueNumber, url: linked.url },
+      };
+    }
+    return { outcome: "unknown", code: "GITHUB_CREATION_UNKNOWN" };
   }
-
-  const marker = markerForTicket(ticket.ticketReference);
-  try {
-    await repository.reserveIssueLink({
-      workspaceId: ticket.workspaceId,
-      projectId: ticket.projectId,
-      ticketId: ticket.ticketId,
-      reconciliationMarker: marker,
-    });
-  } catch {
-    // A concurrent attempt reserved first; fall through to reconcile.
-  }
+  const marker = claim.marker;
   await repository.recordEvent({
     projectId: ticket.projectId,
     ticketId: ticket.ticketId,
     type: ESCALATION_EVENTS.requested,
     summary: `Escalation to ${integration.repositoryOwner}/${integration.repositoryName} requested.`,
   });
+
+  let tracker: IssueTrackerClient;
+  try {
+    tracker = await request.trackers.forInstallation(
+      integration.installationId,
+    );
+    await tracker.verifyRepository({
+      owner: integration.repositoryOwner,
+      repo: integration.repositoryName,
+      repositoryId: integration.repositoryId,
+    });
+  } catch (error) {
+    const code =
+      error instanceof GithubError ? error.code : "GITHUB_MISCONFIGURED";
+    await repository.markIssueStatus({
+      workspaceId: ticket.workspaceId,
+      projectId: ticket.projectId,
+      ticketId: ticket.ticketId,
+      status:
+        claim.previousStatus === "needs_reconciliation"
+          ? "needs_reconciliation"
+          : "retry_required",
+    });
+    await repository.recordEvent({
+      projectId: ticket.projectId,
+      ticketId: ticket.ticketId,
+      type: ESCALATION_EVENTS.failed,
+      summary: `GitHub client or repository verification failed: ${code}.`,
+    });
+    return { outcome: "failed", code };
+  }
 
   const confirm = async (
     issue: CreatedIssue,
@@ -266,6 +308,7 @@ export async function escalateTicketToGitHub(
       owner: integration.repositoryOwner,
       repo: integration.repositoryName,
       marker,
+      repositoryId: integration.repositoryId,
     });
     if (reconciled) {
       await confirm(
@@ -282,7 +325,10 @@ export async function escalateTicketToGitHub(
       workspaceId: ticket.workspaceId,
       projectId: ticket.projectId,
       ticketId: ticket.ticketId,
-      status: "retry_required",
+      status:
+        claim.previousStatus === "needs_reconciliation"
+          ? "needs_reconciliation"
+          : "retry_required",
     });
     await repository.recordEvent({
       projectId: ticket.projectId,
@@ -291,6 +337,16 @@ export async function escalateTicketToGitHub(
       summary: `Reconciliation failed: ${code}.`,
     });
     return { outcome: "failed", code };
+  }
+
+  if (claim.previousStatus === "needs_reconciliation") {
+    await repository.markIssueStatus({
+      workspaceId: ticket.workspaceId,
+      projectId: ticket.projectId,
+      ticketId: ticket.ticketId,
+      status: "needs_reconciliation",
+    });
+    return { outcome: "unknown", code: "GITHUB_CREATION_UNKNOWN" };
   }
 
   let labels: string[] = labelsFor(classification.severity);
@@ -315,6 +371,8 @@ export async function escalateTicketToGitHub(
   }
 
   const draft = buildIssueDraft({
+    ticketId: ticket.ticketId,
+    marker,
     ticketReference: ticket.ticketReference,
     categoryHint: ticket.categoryHint,
     message: ticket.message,
@@ -342,37 +400,30 @@ export async function escalateTicketToGitHub(
   } catch (error) {
     const code =
       error instanceof GithubError ? error.code : "GITHUB_UNAVAILABLE";
-    // Timeouts may have created the issue remotely: mark unknown and
-    // reconcile before any retry, never blind-retry. Other transport
-    // failures are retryable; the next attempt still reconciles first.
-    if (code === "GITHUB_TIMEOUT") {
-      await repository.markIssueStatus({
-        workspaceId: ticket.workspaceId,
-        projectId: ticket.projectId,
-        ticketId: ticket.ticketId,
-        status: "needs_reconciliation",
-      });
-      await repository.recordEvent({
-        projectId: ticket.projectId,
-        ticketId: ticket.ticketId,
-        type: ESCALATION_EVENTS.unknown,
-        summary:
-          "Issue creation outcome unknown; reconcile before retrying, never blind-retry.",
-      });
-      return { outcome: "unknown", code: "GITHUB_CREATION_UNKNOWN" };
-    }
+    const clearRejection =
+      code === "GITHUB_AUTH_FAILED" ||
+      code === "GITHUB_PERMISSION_DENIED" ||
+      code === "GITHUB_REPOSITORY_NOT_FOUND" ||
+      code === "GITHUB_RATE_LIMITED";
+    // Response rejections cannot have created an issue; transport failures can.
     await repository.markIssueStatus({
       workspaceId: ticket.workspaceId,
       projectId: ticket.projectId,
       ticketId: ticket.ticketId,
-      status: "retry_required",
+      status: clearRejection ? "retry_required" : "needs_reconciliation",
     });
     await repository.recordEvent({
       projectId: ticket.projectId,
       ticketId: ticket.ticketId,
-      type: ESCALATION_EVENTS.failed,
-      summary: `Issue creation failed: ${code}.`,
+      type: clearRejection
+        ? ESCALATION_EVENTS.failed
+        : ESCALATION_EVENTS.unknown,
+      summary: clearRejection
+        ? `Issue creation rejected: ${code}.`
+        : `Issue creation outcome uncertain: ${code}; reconcile before further action.`,
     });
-    return { outcome: "failed", code };
+    return clearRejection
+      ? { outcome: "failed", code }
+      : { outcome: "unknown", code: "GITHUB_CREATION_UNKNOWN" };
   }
 }

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./client";
 import {
@@ -614,7 +614,7 @@ export function createSupportRepository(db: Database) {
       projectId: string,
       ticketId: string,
     ) {
-      const [row] = await db
+      const rows = await db
         .select({ override: ticketOverrides, authorEmail: users.email })
         .from(ticketOverrides)
         .innerJoin(tickets, eq(ticketOverrides.ticketId, tickets.id))
@@ -627,9 +627,20 @@ export function createSupportRepository(db: Database) {
             eq(tickets.id, ticketId),
           ),
         )
-        .orderBy(desc(ticketOverrides.createdAt))
-        .limit(1);
-      return row;
+        .orderBy(desc(ticketOverrides.decisionNumber));
+      const latest = rows[0];
+      if (!latest) return undefined;
+      return {
+        ...latest,
+        effective: {
+          route:
+            rows.find((row) => row.override.route !== null)?.override.route ??
+            null,
+          githubIssueRecommended:
+            rows.find((row) => row.override.githubIssueRecommended !== null)
+              ?.override.githubIssueRecommended ?? null,
+        },
+      };
     },
 
     async recordTicketOverride(
@@ -881,14 +892,13 @@ export function createSupportRepository(db: Database) {
                     "classified",
                     "resolved",
                     "reopened",
-                    "rerouted",
                     "released_from_quarantine",
                     "ticket_resolved_from_github",
                     "ticket_reopened_from_github",
                   ]),
                 ),
               )
-              .orderBy(desc(ticketEvents.createdAt), desc(ticketEvents.id))
+              .orderBy(desc(ticketEvents.eventNumber))
               .limit(1);
             return {
               ...row,
@@ -975,7 +985,7 @@ export function createSupportRepository(db: Database) {
             eq(ticketEvents.ticketId, validated.ticketId),
           ),
         )
-        .orderBy(ticketEvents.createdAt);
+        .orderBy(ticketEvents.eventNumber);
     },
 
     async getIntegrationForProject(workspaceId: string, projectId: string) {
@@ -1059,11 +1069,67 @@ export function createSupportRepository(db: Database) {
           and(
             eq(githubIssues.ticketId, valid.ticketId),
             eq(githubIssues.projectId, valid.projectId),
+            isNull(githubIssues.githubIssueId),
           ),
         )
         .returning();
-      if (!issue) throw new Error("GitHub issue link not found for ticket");
+      if (!issue)
+        throw new Error("GitHub issue link already confirmed or missing");
       return issue;
+    },
+
+    async claimGitHubIssueCreation(input: {
+      workspaceId: string;
+      projectId: string;
+      ticketId: string;
+    }) {
+      const valid = z
+        .object({
+          workspaceId: z.uuid(),
+          projectId: z.uuid(),
+          ticketId: z.uuid(),
+        })
+        .parse(input);
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({
+            id: githubIssues.id,
+            status: githubIssues.status,
+            githubIssueId: githubIssues.githubIssueId,
+            marker: githubIssues.reconciliationMarker,
+          })
+          .from(githubIssues)
+          .innerJoin(
+            tickets,
+            and(
+              eq(githubIssues.ticketId, tickets.id),
+              eq(githubIssues.projectId, tickets.projectId),
+            ),
+          )
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(
+            and(
+              eq(projects.workspaceId, valid.workspaceId),
+              eq(projects.id, valid.projectId),
+              eq(tickets.id, valid.ticketId),
+            ),
+          )
+          .for("update", { of: githubIssues })
+          .limit(1);
+        if (!row) throw new Error("GitHub issue intent missing");
+        if (row.githubIssueId !== null || row.status === "creating") {
+          return { claimed: false as const, status: row.status };
+        }
+        await tx
+          .update(githubIssues)
+          .set({ status: "creating", updatedAt: new Date() })
+          .where(eq(githubIssues.id, row.id));
+        return {
+          claimed: true as const,
+          previousStatus: row.status,
+          marker: row.marker,
+        };
+      });
     },
 
     async markGitHubIssueStatus(input: {
@@ -1089,7 +1155,12 @@ export function createSupportRepository(db: Database) {
       const [issue] = await db
         .update(githubIssues)
         .set({ status: valid.status, updatedAt: new Date() })
-        .where(eq(githubIssues.id, existing.id))
+        .where(
+          and(
+            eq(githubIssues.id, existing.id),
+            isNull(githubIssues.githubIssueId),
+          ),
+        )
         .returning();
       if (!issue) throw new Error("GitHub issue update did not return a row");
       return issue;

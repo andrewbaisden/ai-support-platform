@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { markerForTicket } from "./draft";
 import { type PreviewTicket, previewEscalation } from "./preview";
 
 function ticket(overrides: Partial<PreviewTicket> = {}): PreviewTicket {
   return {
+    ticketId: "ticket-123",
     ticketReference: "SUP-123",
     status: "queued",
+    route: "engineering",
     reportedAt: new Date("2026-01-02T03:04:05.000Z"),
     message: "The export page is blank and shows an error on submit.",
     categoryHint: "bug",
@@ -33,7 +36,9 @@ describe("previewEscalation", () => {
     if (preview.state !== "eligible") throw new Error("unreachable");
     expect(preview.repository).toEqual({ owner: "demo", repo: "disposable" });
     expect(preview.draft.title).toContain("[SUP-123]");
-    expect(preview.draft.body).toContain("<!-- ai-support-ticket:SUP-123 -->");
+    expect(preview.draft.body).toContain(
+      markerForTicket("SUP-123", "ticket-123"),
+    );
   });
 
   it("reports not-configured, linked, unknown, and blocked states", () => {
@@ -60,6 +65,13 @@ describe("previewEscalation", () => {
         link: { status: "needs_reconciliation", issueNumber: null, url: null },
       }).state,
     ).toBe("unknown");
+    expect(
+      previewEscalation({
+        ticket: ticket(),
+        integration,
+        link: { status: "creating", issueNumber: null, url: null },
+      }).state,
+    ).toBe("in-progress");
     expect(
       previewEscalation({
         ticket: ticket({ message: "Mail ada@example.com" }),

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { markerForTicket } from "./draft";
 import {
   ESCALATION_EVENTS,
   type EscalationRepository,
@@ -21,6 +22,11 @@ function createFakeRepository(overrides: Partial<EscalationRepository> = {}) {
     })),
     getIssueLink: vi.fn(async () => undefined),
     reserveIssueLink: vi.fn(async () => {}),
+    claimIssueCreation: vi.fn(async () => ({
+      claimed: true as const,
+      previousStatus: "pending",
+      marker: markerForTicket("SUP-123", "ticket-1"),
+    })),
     confirmIssueLink: vi.fn(async () => {}),
     markIssueStatus: vi.fn(async () => {}),
     recordEvent: vi.fn(async (input: { type: string }) => {
@@ -39,6 +45,7 @@ function ticket(overrides: Partial<EscalationTicket> = {}): EscalationTicket {
     ticketNumber: 123,
     ticketReference: "SUP-123",
     status: "queued",
+    route: "engineering",
     reportedAt: new Date("2026-01-02T03:04:05.000Z"),
     message: MESSAGE,
     categoryHint: "bug",
@@ -67,7 +74,7 @@ describe("escalateTicketToGitHub", () => {
     expect(factory.created).toHaveLength(1);
     expect(factory.created[0]?.title).toContain("[SUP-123]");
     expect(factory.created[0]?.body).toContain(
-      "<!-- ai-support-ticket:SUP-123 -->",
+      markerForTicket("SUP-123", "ticket-1"),
     );
     expect(factory.created[0]?.body).not.toContain("ada@example");
     expect(events).toContain(ESCALATION_EVENTS.requested);

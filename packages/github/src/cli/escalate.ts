@@ -102,6 +102,7 @@ const port: EscalationRepository = {
       throw error;
     }
   },
+  claimIssueCreation: (input) => support.claimGitHubIssueCreation(input),
   confirmIssueLink: async (input) => {
     await support.confirmGitHubIssue({
       workspaceId: input.workspaceId,
@@ -186,6 +187,7 @@ try {
       ticketNumber: ticket.ticketNumber,
       ticketReference: ticketReference(ticket.ticketNumber),
       status: ticket.status,
+      route: ticket.route,
       reportedAt: ticket.createdAt,
       message: submission.message,
       categoryHint: submission.categoryHint,
@@ -198,10 +200,10 @@ try {
             githubIssueRecommended: classification.githubIssueRecommended,
           }
         : null,
-      override: override?.override
+      override: override?.effective
         ? {
-            route: override.override.route,
-            githubIssueRecommended: override.override.githubIssueRecommended,
+            route: override.effective.route,
+            githubIssueRecommended: override.effective.githubIssueRecommended,
           }
         : null,
     },

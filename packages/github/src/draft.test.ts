@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildIssueDraft, labelsFor, markerForTicket } from "./draft";
 
 const base = {
+  ticketId: "ticket-123",
   ticketReference: "SUP-123",
   categoryHint: "bug",
   message: "The projects section becomes blank in Safari dark mode.",
@@ -20,7 +21,9 @@ describe("issue draft", () => {
     );
     expect(draft.title.length).toBeLessThanOrEqual(200);
     expect(draft.labels).toEqual(["bug"]);
-    expect(draft.marker).toBe("<!-- ai-support-ticket:SUP-123 -->");
+    expect(draft.marker).toBe(
+      markerForTicket(base.ticketReference, base.ticketId),
+    );
     expect(draft.body).toContain(draft.marker);
     expect(draft.body).toContain("SUP-123");
     expect(draft.body).toContain(base.message);
@@ -39,6 +42,13 @@ describe("issue draft", () => {
     expect(long.body.length).toBeLessThan(6000);
   });
 
+  it("renders visitor Markdown as inert code text", () => {
+    const report =
+      "@operator ![pixel](https://attacker.example/pixel)\n```\ncode";
+    const draft = buildIssueDraft({ ...base, message: report });
+    expect(draft.body).toContain(`\n\`\`\`\`\n${report}\n\`\`\`\`\n`);
+  });
+
   it("maps severity to the label allowlist only", () => {
     expect(labelsFor("low")).toEqual(["bug"]);
     expect(labelsFor("medium")).toEqual(["bug"]);
@@ -47,8 +57,14 @@ describe("issue draft", () => {
   });
 
   it("keeps markers stable and reference-scoped", () => {
-    expect(markerForTicket("SUP-123")).toBe(markerForTicket("SUP-123"));
-    expect(markerForTicket("SUP-123")).not.toBe(markerForTicket("SUP-124"));
-    expect(markerForTicket("SUP-123")).not.toMatch(/[0-9a-f-]{36}/);
+    expect(markerForTicket("SUP-123", "a")).toBe(
+      markerForTicket("SUP-123", "a"),
+    );
+    expect(markerForTicket("SUP-123", "a")).not.toBe(
+      markerForTicket("SUP-123", "b"),
+    );
+    expect(markerForTicket("SUP-123", "a")).not.toBe(
+      markerForTicket("SUP-124", "a"),
+    );
   });
 });

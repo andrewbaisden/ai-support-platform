@@ -16,6 +16,12 @@ export interface CreatedIssue {
 }
 
 export interface IssueTrackerClient {
+  /** Prove owner/name resolves to the stored repository under this installation. */
+  verifyRepository(input: {
+    owner: string;
+    repo: string;
+    repositoryId: string;
+  }): Promise<void>;
   createIssue(input: {
     owner: string;
     repo: string;
@@ -28,6 +34,7 @@ export interface IssueTrackerClient {
     owner: string;
     repo: string;
     marker: string;
+    repositoryId: string;
   }): Promise<CreatedIssue | undefined>;
   /** Repository label names for allowlist intersection. */
   listLabels(input: { owner: string; repo: string }): Promise<string[]>;
