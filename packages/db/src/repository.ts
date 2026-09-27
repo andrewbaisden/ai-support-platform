@@ -37,6 +37,7 @@ import {
   workspaceMembers,
   workspaces,
 } from "./schema";
+import { canTransition } from "./ticket-transitions";
 
 export function ticketReference(ticketNumber: number) {
   return `SUP-${ticketNumber}`;
@@ -310,12 +311,14 @@ export function createSupportRepository(db: Database) {
       projectId: string;
       ticketId: string;
       type: string;
+      summary?: string;
     }) {
       const valid = z
         .object({
           projectId: z.uuid(),
           ticketId: z.uuid(),
           type: z.string().trim().min(1).max(80),
+          summary: z.string().trim().max(500).optional(),
         })
         .parse(input);
       const [event] = await db.insert(ticketEvents).values(valid).returning();
@@ -690,6 +693,7 @@ export function createSupportRepository(db: Database) {
         ticketId: string;
         status: TicketStatus;
         eventType: string;
+        summary?: string;
       },
     ) {
       const valid = z
@@ -705,6 +709,7 @@ export function createSupportRepository(db: Database) {
             "quarantined",
           ]),
           eventType: z.string().trim().min(1).max(80),
+          summary: z.string().trim().max(500).optional(),
         })
         .parse(input);
       return db.transaction(async (tx) => {
@@ -732,6 +737,7 @@ export function createSupportRepository(db: Database) {
           projectId: valid.projectId,
           ticketId: valid.ticketId,
           type: valid.eventType,
+          ...(valid.summary !== undefined ? { summary: valid.summary } : {}),
         });
         return ticket;
       });
@@ -745,6 +751,215 @@ export function createSupportRepository(db: Database) {
         .where(eq(users.email, valid))
         .limit(1);
       return row;
+    },
+
+    async withGitHubWebhookDelivery<
+      T extends { outcome: "processed" | "ignored" },
+    >(
+      input: {
+        deliveryId: string;
+        eventType: string;
+        action?: string;
+        repositoryId?: bigint;
+        installationId?: bigint;
+        githubIssueId?: bigint;
+      },
+      process: (scope: {
+        findLink: (ref: {
+          repositoryId: bigint;
+          githubIssueId: bigint;
+        }) => Promise<
+          | {
+              issueId: string;
+              ticketId: string;
+              projectId: string;
+              workspaceId: string;
+              issueNumber: number;
+              installationId: bigint;
+              integrationStatus: string;
+              linkStatus: string;
+              ticketStatus: TicketStatus;
+              ticketRoute: TicketRoute | null;
+              latestStatusEvent?: string;
+            }
+          | undefined
+        >;
+        setIssueState: (
+          issueId: string,
+          status: "open" | "closed",
+        ) => Promise<void>;
+        setTicketStatus: (
+          ticketId: string,
+          status: "queued" | "resolved",
+          eventType: string,
+          summary: string,
+        ) => Promise<void>;
+        recordEvent: (
+          projectId: string,
+          ticketId: string,
+          type: string,
+          summary: string,
+        ) => Promise<void>;
+      }) => Promise<T>,
+    ): Promise<T | { outcome: "duplicate" }> {
+      const valid = z
+        .object({
+          deliveryId: z.uuid(),
+          eventType: z.string().trim().min(1).max(80),
+          action: z.string().trim().min(1).max(80).optional(),
+          repositoryId: z.bigint().positive().optional(),
+          installationId: z.bigint().positive().optional(),
+          githubIssueId: z.bigint().positive().optional(),
+        })
+        .parse(input);
+      return db.transaction(async (tx) => {
+        // The unique constraint serializes concurrent requests with the same ID.
+        // If processing throws, this insertion rolls back and redelivery can retry.
+        const [inserted] = await tx
+          .insert(webhookEvents)
+          .values(valid)
+          .onConflictDoNothing({
+            target: [webhookEvents.provider, webhookEvents.deliveryId],
+          })
+          .returning({ id: webhookEvents.id });
+        if (!inserted) return { outcome: "duplicate" as const };
+        const scope = {
+          findLink: async (ref: {
+            repositoryId: bigint;
+            githubIssueId: bigint;
+          }) => {
+            const [row] = await tx
+              .select({
+                issueId: githubIssues.id,
+                ticketId: tickets.id,
+                projectId: projects.id,
+                workspaceId: projects.workspaceId,
+                issueNumber: githubIssues.issueNumber,
+                installationId: githubIntegrations.installationId,
+                integrationStatus: githubIntegrations.status,
+                linkStatus: githubIssues.status,
+                ticketStatus: tickets.status,
+                ticketRoute: tickets.route,
+              })
+              .from(githubIssues)
+              .innerJoin(
+                tickets,
+                and(
+                  eq(githubIssues.ticketId, tickets.id),
+                  eq(githubIssues.projectId, tickets.projectId),
+                ),
+              )
+              .innerJoin(projects, eq(tickets.projectId, projects.id))
+              .innerJoin(
+                githubIntegrations,
+                and(
+                  eq(githubIssues.integrationId, githubIntegrations.id),
+                  eq(githubIssues.projectId, githubIntegrations.projectId),
+                  eq(
+                    githubIssues.repositoryId,
+                    githubIntegrations.repositoryId,
+                  ),
+                ),
+              )
+              .where(
+                and(
+                  eq(githubIssues.repositoryId, ref.repositoryId),
+                  eq(githubIssues.githubIssueId, ref.githubIssueId),
+                ),
+              )
+              .for("update", { of: [githubIssues, tickets] })
+              .limit(1);
+            if (!row || row.issueNumber === null) return undefined;
+            const statusEvents = await tx
+              .select({ type: ticketEvents.type })
+              .from(ticketEvents)
+              .where(
+                and(
+                  eq(ticketEvents.projectId, row.projectId),
+                  eq(ticketEvents.ticketId, row.ticketId),
+                  inArray(ticketEvents.type, [
+                    "classified",
+                    "resolved",
+                    "reopened",
+                    "rerouted",
+                    "released_from_quarantine",
+                    "ticket_resolved_from_github",
+                    "ticket_reopened_from_github",
+                  ]),
+                ),
+              )
+              .orderBy(desc(ticketEvents.createdAt), desc(ticketEvents.id))
+              .limit(1);
+            return {
+              ...row,
+              issueNumber: row.issueNumber,
+              latestStatusEvent: statusEvents[0]?.type,
+            };
+          },
+          setIssueState: async (issueId: string, status: "open" | "closed") => {
+            await tx
+              .update(githubIssues)
+              .set({ status, updatedAt: new Date() })
+              .where(eq(githubIssues.id, issueId));
+          },
+          setTicketStatus: async (
+            ticketId: string,
+            status: "queued" | "resolved",
+            eventType: string,
+            summary: string,
+          ) => {
+            const [current] = await tx
+              .select({ status: tickets.status })
+              .from(tickets)
+              .where(eq(tickets.id, ticketId))
+              .limit(1);
+            if (!current || !canTransition(current.status, status))
+              throw new Error("Invalid webhook ticket transition");
+            await tx
+              .update(tickets)
+              .set({ status, updatedAt: new Date() })
+              .where(eq(tickets.id, ticketId));
+            const [ticket] = await tx
+              .select({ projectId: tickets.projectId })
+              .from(tickets)
+              .where(eq(tickets.id, ticketId))
+              .limit(1);
+            if (!ticket)
+              throw new Error("Ticket missing during webhook processing");
+            await tx.insert(ticketEvents).values({
+              projectId: ticket.projectId,
+              ticketId,
+              type: eventType,
+              summary,
+            });
+          },
+          recordEvent: async (
+            projectId: string,
+            ticketId: string,
+            type: string,
+            summary: string,
+          ) => {
+            await tx
+              .insert(ticketEvents)
+              .values({ projectId, ticketId, type, summary });
+          },
+        };
+        const result = await process(scope);
+        await tx
+          .update(webhookEvents)
+          .set({
+            status: result.outcome === "processed" ? "processed" : "ignored",
+            failureCode:
+              result.outcome === "ignored" &&
+              "reason" in result &&
+              typeof result.reason === "string"
+                ? result.reason
+                : null,
+            processedAt: new Date(),
+          })
+          .where(eq(webhookEvents.id, inserted.id));
+        return result;
+      });
     },
 
     async listTicketEvents(projectId: string, ticketId: string) {

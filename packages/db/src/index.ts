@@ -35,3 +35,4 @@ export {
   users,
   verifications,
 } from "./schema";
+export { canTransition } from "./ticket-transitions";

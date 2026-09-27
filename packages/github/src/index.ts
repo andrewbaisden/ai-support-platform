@@ -42,3 +42,20 @@ export type {
   IssueTrackerClient,
   TrackerFactory,
 } from "./types";
+export {
+  signWebhookPayload,
+  verifyWebhookSignature,
+} from "./webhook-auth";
+export {
+  type IssuesWebhook,
+  issuesWebhookSchema,
+} from "./webhook-payload";
+export {
+  processGitHubWebhook,
+  type RemoteIssueRef,
+  WEBHOOK_EVENTS,
+  type WebhookDeliveryInput,
+  type WebhookLink,
+  type WebhookOutcome,
+  type WebhookRepository,
+} from "./webhook-service";

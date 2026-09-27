@@ -71,7 +71,12 @@ export function previewEscalation(input: {
   if (integration?.status !== "active") {
     return { state: "not-configured" };
   }
-  if (link && (link.issueNumber !== null || link.status === "open")) {
+  if (
+    link &&
+    (link.issueNumber !== null ||
+      link.status === "open" ||
+      link.status === "closed")
+  ) {
     return {
       state: "already-linked",
       issue: { number: link.issueNumber, url: link.url },

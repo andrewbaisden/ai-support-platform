@@ -1,4 +1,6 @@
-import type { TicketStatus } from "@ai-support-platform/db";
+import { canTransition, type TicketStatus } from "@ai-support-platform/db";
+
+export { canTransition };
 
 /**
  * Owner-driven workflow transitions. AI triage owns needs_triage→queued and
@@ -6,28 +8,6 @@ import type { TicketStatus } from "@ai-support-platform/db";
  * future GitHub phase and are never entered manually. Anything not listed
  * here is rejected server-side.
  */
-export function canTransition(from: TicketStatus, to: TicketStatus): boolean {
-  if (from === to) return true;
-  switch (to) {
-    case "resolved":
-      return (
-        from === "needs_triage" ||
-        from === "queued" ||
-        from === "quarantined" ||
-        from === "escalation_pending"
-      );
-    case "queued":
-      // Reopen resolved tickets, or release quarantined ones via review.
-      return (
-        from === "resolved" || from === "quarantined" || from === "needs_triage"
-      );
-    case "quarantined":
-      return from === "needs_triage" || from === "queued";
-    default:
-      return false;
-  }
-}
-
 export function transitionEvent(
   from: TicketStatus,
   to: TicketStatus,

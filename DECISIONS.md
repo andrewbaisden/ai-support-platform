@@ -140,7 +140,15 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** Operator confirmation lets the team validate content, privacy filtering, labels, and repository mapping before any automation. Deterministic drafts keep the security boundary verifiable. Reconcile-first plus database uniqueness converges retries and double-clicks without remote duplicates. Short-lived installation tokens stay in SDK memory, never in rows or browser code.
 
-**Consequence:** Live use needs `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` and a disposable-repo-first policy; `GITHUB_ESCALATION_MOCK=1` fakes only the network in E2E. Escalation states on tickets and webhook sync arrive in Phase 8.
+**Consequence:** Live use needs `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` and a disposable-repo-first policy; `GITHUB_ESCALATION_MOCK=1` fakes only the network in E2E. Webhook sync arrives in Phase 8; escalation workflow statuses remain unused while Phase 7 issues leave tickets queued.
+
+## ADR-020 — Transactional inbound GitHub state sync
+
+**Decision:** Accept GitHub App webhook deliveries at unauthenticated `POST /api/webhooks/github`, authenticated by `X-Hub-Signature-256` over the exact bounded raw body. Require `X-GitHub-Delivery` and validate a minimal `issues` envelope. Persist only safe delivery metadata. Insert the unique delivery row and process linked issue, ticket, and events in one PostgreSQL transaction with issue/ticket row locks. Match repository ID + issue ID, issue number, and App installation against the active project integration. Handle `closed` and `reopened`; acknowledge `ping` and other actions without content synchronization.
+
+**Why:** Database uniqueness and locks cover concurrent delivery and semantic repeats across instances. Event history already gives sufficient provenance: only tickets whose latest status decision is `ticket_resolved_from_github` auto-reopen. A manual status change takes precedence. The common workflow guard rejects impossible transitions. No new table, migration, or webhook payload archive is needed.
+
+**Consequence:** A transient failure rolls back and returns 503. GitHub does not automatically redeliver failures, so operational redelivery is required. Distinct out-of-order events are a known limitation pending a reliable remote-state reconciliation strategy. The 1 MiB cap and synchronous work must be monitored against GitHub's 10-second response target. No comments, metadata edits, customer notifications, or marker-only linking are implemented.
 
 ## Open operational inputs
 

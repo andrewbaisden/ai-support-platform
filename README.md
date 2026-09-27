@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 7: GitHub issue escalation**. Operators confirm eligible tickets in the dashboard to create real GitHub issues via a GitHub App (mock adapter in tests/E2E); linkage, events, privacy gating, and idempotent reconciliation are implemented. No webhooks or generative AI exist yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 8: GitHub webhook synchronization**. Operators confirm eligible tickets to create GitHub issues; signed `issues.closed` and `issues.reopened` deliveries now update linked issue and support ticket state. Generative AI and customer notifications remain deferred. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -98,6 +98,14 @@ Eligible tickets (`bug` + `engineering` + confidence ≥ 0.90 + human recommenda
 
 Connect a project with `pnpm github:connect` (GitHub App with Issues read/write + Metadata read, installed on a disposable repository first); create from the dashboard or `pnpm github:escalate --ticket <uuid>` (mock by default, `--live` needs `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY`). `GITHUB_ESCALATION_MOCK=1` fakes only the GitHub network for E2E. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md), and `docs/handoffs/phase-07.md`.
 
+## GitHub webhook synchronization (Phase 8)
+
+Configure the GitHub App webhook URL as `https://<platform-host>/api/webhooks/github`, set a high-entropy secret in GitHub and the server-only `GITHUB_WEBHOOK_SECRET`, and subscribe to the repository **Issues** event only (the setup `ping` is acknowledged). The endpoint uses no dashboard session. It reads at most 1 MiB of raw bytes, verifies `X-Hub-Signature-256` with HMAC-SHA256 before JSON parsing, and requires a UUID `X-GitHub-Delivery`. It accepts JSON and safely ignores unrelated events/actions, including `issues.edited` (content and metadata edits do not sync in this phase).
+
+A recognized close changes the linked issue to Closed and resolves a queued engineering ticket. A reopen changes the issue to Open and reopens the support ticket only when its latest status decision was the GitHub resolution. Manual resolutions remain in force. Repeated deliveries and repeated issue states create no duplicate timeline events. The unique delivery row and issue/ticket row locks arbitrate concurrent requests; delivery completion, issue state, ticket status, and events commit together. Server failures return 503 and roll back so an operator can redeliver from GitHub. GitHub [does not automatically redeliver failed webhooks](https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries); inspect the App's Recent Deliveries and redeliver failures manually or add a later scheduled recovery job.
+
+For local verification, set `GITHUB_WEBHOOK_SECRET` in ignored `.env`, run `pnpm dev:web`, and send a signed fixture to the endpoint. `pnpm test:db`, `pnpm test:github`, and `pnpm test:e2e` exercise the offline path; E2E sets a local-only secret. Optional live validation requires the Phase 7 disposable GitHub App/repository, a public HTTPS endpoint (a temporary tunnel is fine; no tunnel dependency is required), a linked issue, and manual close/reopen. Check the ticket detail and delivery log after each action. Live validation has not run in this environment.
+
 ## Local PostgreSQL
 
 Docker Compose starts only PostgreSQL 16 and creates separate development and test databases. Port `54339` is bound to loopback, with a persistent Compose volume. Docker is optional for developers who provide equivalent local PostgreSQL URLs.
@@ -127,7 +135,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 8 begins only after review of the Phase 7 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 9 begins only after review of the Phase 8 handoff and owner approval.
 
 ## Documentation
 

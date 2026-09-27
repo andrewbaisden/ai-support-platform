@@ -331,6 +331,12 @@ export default async function TicketDetailPage({ params }: PageProps) {
             projectId={project.id}
             ticketId={ticket.id}
             initial={githubPreview}
+            issueState={link?.status ?? null}
+            repository={
+              integration
+                ? `${integration.repositoryOwner}/${integration.repositoryName}`
+                : null
+            }
           />
         </section>
 

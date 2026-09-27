@@ -24,14 +24,18 @@ function isGithubUrl(value: string | null | undefined): boolean {
 function AlreadyLinkedIssue({
   number,
   url,
+  state,
+  repository,
 }: {
   number: number | null;
   url: string | null;
+  state: string;
+  repository: string | null;
 }) {
   if (url && isGithubUrl(url) && number !== null) {
     return (
       <p role="status">
-        Linked issue{" "}
+        GitHub Issue{" "}
         <a
           className="font-medium text-blue-700 underline"
           href={url}
@@ -40,6 +44,9 @@ function AlreadyLinkedIssue({
         >
           #{number}
         </a>
+        {" · "}
+        {state === "closed" ? "Closed" : "Open"}
+        {repository ? ` · ${repository}` : ""}
       </p>
     );
   }
@@ -50,10 +57,14 @@ export function GitHubSection({
   projectId,
   ticketId,
   initial,
+  issueState,
+  repository,
 }: {
   projectId: string;
   ticketId: string;
   initial: EscalationPreview;
+  issueState: string | null;
+  repository: string | null;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -95,6 +106,8 @@ export function GitHubSection({
         <AlreadyLinkedIssue
           number={initial.issue.number}
           url={initial.issue.url}
+          state={issueState ?? "open"}
+          repository={repository}
         />
       )}
       {initial.state === "unknown" && (

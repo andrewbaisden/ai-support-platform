@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // Local Better Auth sign-in and Next dev compilation are flaky under
+  // concurrent browser workers; serialize the shared dev-server journey.
+  workers: 1,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
@@ -22,6 +25,7 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         GITHUB_ESCALATION_MOCK: "1",
+        GITHUB_WEBHOOK_SECRET: "local-e2e-webhook-secret",
       },
     },
   ],

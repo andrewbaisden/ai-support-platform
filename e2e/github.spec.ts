@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import {
   type APIRequestContext,
   expect,
@@ -114,8 +114,74 @@ test("already-linked tickets show the issue instead of a create button", async (
   await expect(page.getByText(/Issue created \(#\d+\)/)).toBeVisible();
   await page.reload();
   await page.waitForLoadState("networkidle");
-  await expect(page.getByText("Linked issue")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "GitHub escalation" }).getByRole("status"),
+  ).toContainText("GitHub Issue");
   await expect(
     page.getByRole("button", { name: "Create GitHub issue" }),
   ).toHaveCount(0);
+});
+
+test("signed issue close and reopen update the dashboard", async ({
+  page,
+  request,
+}) => {
+  const reference = await submitBug(
+    request,
+    `E2E webhook probe ${randomUUID()}: export page is blank.`,
+  );
+  await login(page);
+  await openTicket(page, reference);
+  await clickUntilSettled(
+    page,
+    "Re-run AI triage",
+    /Classified as |Action failed/,
+  );
+  await page.waitForLoadState("networkidle");
+  await clickCreateUntilSuccess(page);
+  const marker = `<!-- ai-support-ticket:${reference} -->`;
+  let hash = 0x811c9dc5;
+  for (const char of `example/disposable/${marker}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const issueId = 100000 + (Math.abs(hash) % 800000);
+  const issueNumber = 1 + (Math.abs(hash) % 4999);
+  async function send(
+    action: "closed" | "reopened",
+    deliveryId = randomUUID(),
+  ) {
+    const raw = JSON.stringify({
+      action,
+      issue: {
+        id: issueId,
+        number: issueNumber,
+        state: action === "closed" ? "closed" : "open",
+      },
+      repository: { id: 999, name: "disposable", owner: { login: "example" } },
+      installation: { id: 999 },
+    });
+    const signature = `sha256=${createHmac("sha256", "local-e2e-webhook-secret").update(raw).digest("hex")}`;
+    return request.post("http://127.0.0.1:3000/api/webhooks/github", {
+      data: raw,
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Delivery": deliveryId,
+        "X-GitHub-Event": "issues",
+        "X-Hub-Signature-256": signature,
+      },
+    });
+  }
+  expect((await send("closed")).status()).toBe(200);
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "GitHub escalation" }).getByRole("status"),
+  ).toContainText("Closed");
+  await expect(page.getByText(/Resolved because GitHub issue/)).toBeVisible();
+  expect((await send("reopened")).status()).toBe(200);
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "GitHub escalation" }).getByRole("status"),
+  ).toContainText("Open");
+  await expect(page.getByText(/Reopened because GitHub issue/)).toBeVisible();
 });
