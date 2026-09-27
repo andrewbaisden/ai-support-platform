@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { z } from "zod";
@@ -15,13 +15,18 @@ const databaseUrlSchema = z
   );
 
 export function loadRootEnv() {
-  // import.meta.url is unreliable once a bundler (Next.js webpack) transpiles
-  // this module, so fall back to working-directory candidates. dotenv never
-  // overrides variables that are already set, so loading every candidate that
-  // exists is safe. Deployed environments must provide DATABASE_URL directly.
+  // Webpack treats `new URL("./relative", import.meta.url)` as a module
+  // dependency and fails the production build when this gitignored file is
+  // absent. Join the path instead. import.meta.url is also unreliable once
+  // Next.js transpiles this module, so fall back to working-directory
+  // candidates. dotenv never overrides variables that are already set, so
+  // loading every candidate that exists is safe. Deployed environments must
+  // provide DATABASE_URL directly.
   const candidates: string[] = [];
   try {
-    candidates.push(fileURLToPath(new URL("../../../.env", import.meta.url)));
+    candidates.push(
+      join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", ".env"),
+    );
   } catch {
     // Bundler rewrote import.meta.url; rely on the candidates below.
   }
