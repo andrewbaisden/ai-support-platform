@@ -763,6 +763,123 @@ export function createSupportRepository(db: Database) {
         .orderBy(ticketEvents.createdAt);
     },
 
+    async getIntegrationForProject(workspaceId: string, projectId: string) {
+      const [row] = await db
+        .select({ integration: githubIntegrations })
+        .from(githubIntegrations)
+        .innerJoin(projects, eq(githubIntegrations.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+          ),
+        )
+        .limit(1);
+      return row?.integration;
+    },
+
+    async getGitHubIssueForTicket(
+      workspaceId: string,
+      projectId: string,
+      ticketId: string,
+    ) {
+      const [row] = await db
+        .select({ issue: githubIssues })
+        .from(githubIssues)
+        .innerJoin(tickets, eq(githubIssues.ticketId, tickets.id))
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+            eq(tickets.id, ticketId),
+          ),
+        )
+        .limit(1);
+      return row?.issue;
+    },
+
+    async confirmGitHubIssue(input: {
+      workspaceId: string;
+      projectId: string;
+      ticketId: string;
+      githubIssueId: bigint;
+      issueNumber: number;
+      url: string;
+    }) {
+      const valid = z
+        .object({
+          workspaceId: z.uuid(),
+          projectId: z.uuid(),
+          ticketId: z.uuid(),
+          githubIssueId: z.bigint().positive(),
+          issueNumber: z.number().int().positive(),
+          url: z
+            .string()
+            .url()
+            .max(500)
+            .refine((value) => {
+              try {
+                const parsed = new URL(value);
+                return (
+                  parsed.protocol === "https:" &&
+                  parsed.hostname === "github.com"
+                );
+              } catch {
+                return false;
+              }
+            }),
+        })
+        .parse(input);
+      const [issue] = await db
+        .update(githubIssues)
+        .set({
+          githubIssueId: valid.githubIssueId,
+          issueNumber: valid.issueNumber,
+          url: valid.url,
+          status: "open",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(githubIssues.ticketId, valid.ticketId),
+            eq(githubIssues.projectId, valid.projectId),
+          ),
+        )
+        .returning();
+      if (!issue) throw new Error("GitHub issue link not found for ticket");
+      return issue;
+    },
+
+    async markGitHubIssueStatus(input: {
+      workspaceId: string;
+      projectId: string;
+      ticketId: string;
+      status: "pending" | "retry_required" | "needs_reconciliation";
+    }) {
+      const valid = z
+        .object({
+          workspaceId: z.uuid(),
+          projectId: z.uuid(),
+          ticketId: z.uuid(),
+          status: z.enum(["pending", "retry_required", "needs_reconciliation"]),
+        })
+        .parse(input);
+      const existing = await this.getGitHubIssueForTicket(
+        valid.workspaceId,
+        valid.projectId,
+        valid.ticketId,
+      );
+      if (!existing) throw new Error("GitHub issue link not found for ticket");
+      const [issue] = await db
+        .update(githubIssues)
+        .set({ status: valid.status, updatedAt: new Date() })
+        .where(eq(githubIssues.id, existing.id))
+        .returning();
+      if (!issue) throw new Error("GitHub issue update did not return a row");
+      return issue;
+    },
+
     async appendClassification(
       workspaceId: string,
       input: ClassificationInput,

@@ -134,8 +134,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** Production must set `BETTER_AUTH_SECRET`, enable email verification with delivery, rotate the dev placeholder, and review the signup gate before any hosted use. Escalation-state transitions stay reserved for Phase 7.
 
+## ADR-019 — Operator-confirmed GitHub escalation
+
+**Decision:** Escalate through a GitHub App (`@octokit/app` pinned at 16.1.4, Issues read/write + Metadata read-only) with operator preview/confirm in the dashboard — no automatic creation yet. Keep a `packages/github` boundary (App client, deterministic drafts, privacy gate, escalation service with repository/tracker ports, scripted mock). Content is deterministic (no generative model): bounded title, structured body with a stable `<!-- ai-support-ticket:SUP-n -->` marker, labels intersected with existing repository labels. Reserve the intent row, reconcile by marker before every create, mark timeouts `needs_reconciliation`, and never blind-retry. Human decline always wins; ticket status is unchanged by creation.
+
+**Why:** Operator confirmation lets the team validate content, privacy filtering, labels, and repository mapping before any automation. Deterministic drafts keep the security boundary verifiable. Reconcile-first plus database uniqueness converges retries and double-clicks without remote duplicates. Short-lived installation tokens stay in SDK memory, never in rows or browser code.
+
+**Consequence:** Live use needs `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` and a disposable-repo-first policy; `GITHUB_ESCALATION_MOCK=1` fakes only the network in E2E. Escalation states on tickets and webhook sync arrive in Phase 8.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.
-- A disposable GitHub repository and GitHub App registration are needed in Phase 7; never use the portfolio repository as the initial test target.
+- A disposable GitHub repository and GitHub App registration are needed for the Phase 7 live escalation test; never use the portfolio repository as the initial test target. No credentials exist in this environment, so live GitHub validation has not run.
 - Hosting, managed PostgreSQL provider, and worker scheduling details are chosen before deployment. The application contracts above do not depend on a specific provider.

@@ -1,8 +1,10 @@
 import { LOW_CONFIDENCE_REVIEW_FLOOR } from "@ai-support-platform/ai";
 import { ticketReference } from "@ai-support-platform/db";
+import { previewEscalation } from "@ai-support-platform/github";
 import { notFound } from "next/navigation";
 import { getTicketDetail } from "../../../../../../lib/dashboard";
 import { requireDashboardUser } from "../../../../../../lib/dashboard-session";
+import { GitHubSection } from "./github-section";
 import {
   OverrideForm,
   ResolveReopenButtons,
@@ -50,7 +52,35 @@ export default async function TicketDetailPage({ params }: PageProps) {
     events,
     override,
     effectiveGithubEligible,
+    integration,
+    link,
   } = detail;
+  const githubPreview = previewEscalation({
+    ticket: {
+      ticketReference: ticketReference(ticket.ticketNumber),
+      status: ticket.status,
+      reportedAt: ticket.createdAt,
+      message: message ?? "",
+      categoryHint: ticket.categoryHint,
+      classification: classification
+        ? {
+            type: classification.type,
+            severity: classification.severity,
+            confidence: classification.confidence,
+            route: classification.route,
+            githubIssueRecommended: classification.githubIssueRecommended,
+          }
+        : null,
+      override: override?.override
+        ? {
+            route: override.override.route,
+            githubIssueRecommended: override.override.githubIssueRecommended,
+          }
+        : null,
+    },
+    integration: integration ?? undefined,
+    link: link ?? undefined,
+  });
   return (
     <div>
       <p className="text-sm text-slate-500">
@@ -288,6 +318,20 @@ export default async function TicketDetailPage({ params }: PageProps) {
               ))}
             </ol>
           )}
+        </section>
+
+        <section
+          aria-labelledby="github"
+          className="rounded border border-slate-200 bg-white p-5 lg:col-span-2"
+        >
+          <h3 id="github" className="font-semibold">
+            GitHub escalation
+          </h3>
+          <GitHubSection
+            projectId={project.id}
+            ticketId={ticket.id}
+            initial={githubPreview}
+          />
         </section>
 
         <section

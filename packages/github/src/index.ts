@@ -1,0 +1,44 @@
+export { createTrackerFactory } from "./app-auth";
+export {
+  buildIssueDraft,
+  type DraftInput,
+  ISSUE_LABEL_ALLOWLIST,
+  labelsFor,
+  markerForTicket,
+} from "./draft";
+export {
+  GithubError,
+  type GithubErrorCode,
+  githubErrorCodes,
+  mapRequestError,
+} from "./errors";
+export {
+  ESCALATION_EVENTS,
+  type EscalationIntegration,
+  type EscalationIssueLink,
+  type EscalationOutcome,
+  type EscalationRepository,
+  type EscalationRequest,
+  type EscalationTicket,
+  escalateTicketToGitHub,
+} from "./escalation-service";
+export { createMockTrackerFactory, type MockScenario } from "./mock";
+export {
+  type EscalationPreview,
+  type PreviewIntegration,
+  type PreviewLink,
+  type PreviewTicket,
+  previewEscalation,
+} from "./preview";
+export {
+  type PrivacyFinding,
+  type PrivacyScreen,
+  redactEmails,
+  screenReport,
+} from "./privacy";
+export type {
+  CreatedIssue,
+  IssueDraft,
+  IssueTrackerClient,
+  TrackerFactory,
+} from "./types";

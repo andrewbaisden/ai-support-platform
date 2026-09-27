@@ -168,6 +168,14 @@ export async function getTicketDetail(
       repo.listTicketEvents(projectId, ticketId),
       repo.getLatestOverride(scoped.access.workspaceId, projectId, ticketId),
     ]);
+  const [integration, link] = await Promise.all([
+    repo.getIntegrationForProject(scoped.access.workspaceId, projectId),
+    repo.getGitHubIssueForTicket(
+      scoped.access.workspaceId,
+      projectId,
+      ticketId,
+    ),
+  ]);
   return {
     access: scoped.access,
     project: scoped.project,
@@ -178,6 +186,16 @@ export async function getTicketDetail(
     history,
     events,
     override,
+    integration: integration
+      ? {
+          repositoryOwner: integration.repositoryOwner,
+          repositoryName: integration.repositoryName,
+          status: integration.status,
+        }
+      : null,
+    link: link
+      ? { status: link.status, issueNumber: link.issueNumber, url: link.url }
+      : null,
     effectiveGithubEligible: effectiveEscalation(
       classification
         ? { githubIssueRecommended: classification.githubIssueRecommended }

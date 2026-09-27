@@ -3,6 +3,7 @@ import { createDatabase } from "./client";
 import { loadRootEnv, requireDatabaseUrl } from "./env";
 import {
   conversations,
+  githubIntegrations,
   messages,
   projects,
   type Severity,
@@ -310,6 +311,22 @@ try {
   process.stdout.write(
     "Seeded Andrew Demo Workspace, two projects, and eight sample tickets.\n",
   );
+
+  // Mock escalation target for local dashboard development and E2E. The mock
+  // tracker ignores these values; live use requires github:connect output.
+  await db
+    .insert(githubIntegrations)
+    .values({
+      id: "80000000-0000-4000-8000-000000000001",
+      projectId: portfolioProjectId,
+      installationId: 999n,
+      repositoryId: 999n,
+      repositoryOwner: "example",
+      repositoryName: "disposable",
+      createdAt: seedTime,
+      updatedAt: seedTime,
+    })
+    .onConflictDoNothing();
 } finally {
   await pool.end();
 }

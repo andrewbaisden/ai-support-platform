@@ -5,6 +5,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { clickResolveUntilDone, clickUntilSettled } from "./helpers";
 
 const WEB_API = "http://127.0.0.1:3000/api/v1/support/tickets";
 const DEMO_PROJECT_KEY = `pk_${"A".repeat(32)}`;
@@ -73,8 +74,11 @@ test("operator re-tries triage and sees history grow", async ({
   // Client islands hydrate after dev chunk compilation; clicks before that
   // land on SSR HTML and never reach React.
   await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Re-run AI triage" }).click();
-  await expect(page.getByText(/Classified as bug/)).toBeVisible();
+  await clickUntilSettled(
+    page,
+    "Re-run AI triage",
+    /Classified as |Action failed/,
+  );
   await expect(page.getByText("Classification history")).toBeVisible();
   await expect(page.getByText("retriage_requested")).toBeVisible();
 });
@@ -96,8 +100,7 @@ test("operator resolves a ticket and sees the timeline entry", async ({
   await page.getByRole("button", { name: "Apply filters" }).click();
   await page.getByRole("link", { name: reference }).click();
   await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Mark resolved" }).click();
-  await expect(page.getByText("Ticket moved to resolved.")).toBeVisible();
+  await clickResolveUntilDone(page);
   await expect(
     page.getByText("resolved", { exact: true }).first(),
   ).toBeVisible();

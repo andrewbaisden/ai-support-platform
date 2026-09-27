@@ -12,12 +12,17 @@ export default defineConfig({
   // One command builds shared package dist output first, then starts both
   // Next.js apps. Separate parallel dev commands each rebuild dist while the
   // other app bundles it, which intermittently poisoned the demo bundle.
+  // GITHUB_ESCALATION_MOCK fakes the GitHub network (authz still enforced);
+  // live GitHub runs use the github:escalate CLI separately.
   webServer: [
     {
       command: "pnpm dev:e2e",
       url: "http://127.0.0.1:3001",
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
+      env: {
+        GITHUB_ESCALATION_MOCK: "1",
+      },
     },
   ],
 });

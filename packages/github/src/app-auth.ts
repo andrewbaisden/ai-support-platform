@@ -1,0 +1,186 @@
+import { App } from "@octokit/app";
+import { GithubError, mapRequestError } from "./errors";
+import type { CreatedIssue, IssueTrackerClient, TrackerFactory } from "./types";
+
+const REQUEST_TIMEOUT_MS = 10_000;
+const RECONCILE_PAGES = 3;
+const RECONCILE_PER_PAGE = 100;
+
+function isGithubUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "github.com";
+  } catch {
+    return false;
+  }
+}
+
+const createdIssueSchema = {
+  parse(value: unknown): CreatedIssue {
+    if (typeof value !== "object" || value === null) {
+      throw new GithubError("GITHUB_INVALID_RESPONSE", "Empty issue response");
+    }
+    const record = value as Record<string, unknown>;
+    const id = record.id;
+    const number = record.number;
+    const url = record.html_url;
+    if (
+      typeof id !== "number" ||
+      !Number.isInteger(id) ||
+      typeof number !== "number" ||
+      !Number.isInteger(number) ||
+      !isGithubUrl(url)
+    ) {
+      throw new GithubError(
+        "GITHUB_INVALID_RESPONSE",
+        "Issue response failed validation",
+      );
+    }
+    return { id, number, url };
+  },
+};
+
+function toGithubError(error: unknown): GithubError {
+  if (error instanceof GithubError) return error;
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return new GithubError("GITHUB_TIMEOUT", "GitHub request timed out", {
+      cause: error,
+    });
+  }
+  return mapRequestError(error);
+}
+
+async function withTimeout<T>(label: string, task: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`${label} timed out`);
+          error.name = "TimeoutError";
+          reject(error);
+        }, REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * GitHub App adapter. JWT signing and installation-token minting stay inside
+ * the official SDK; tokens are held in memory by Octokit and never persisted.
+ */
+export function createTrackerFactory(options: {
+  appId: string;
+  privateKey: string;
+}): TrackerFactory {
+  if (!options.appId || !options.privateKey) {
+    throw new GithubError(
+      "GITHUB_MISCONFIGURED",
+      "GitHub App ID and private key are required",
+    );
+  }
+  const app = new App({
+    appId: options.appId,
+    privateKey: options.privateKey,
+  });
+  return {
+    async forInstallation(installationId: string): Promise<IssueTrackerClient> {
+      let octokit: Awaited<ReturnType<App["getInstallationOctokit"]>>;
+      try {
+        octokit = await withTimeout(
+          "installation token",
+          app.getInstallationOctokit(Number(installationId)),
+        );
+      } catch (error) {
+        throw toGithubError(error);
+      }
+      return {
+        async createIssue(input) {
+          try {
+            const response = await withTimeout(
+              "create issue",
+              octokit.request("POST /repos/{owner}/{repo}/issues", {
+                owner: input.owner,
+                repo: input.repo,
+                title: input.title,
+                body: input.body,
+                labels: input.labels,
+              }),
+            );
+            if (response.status !== 201) {
+              throw new GithubError(
+                "GITHUB_INVALID_RESPONSE",
+                `Unexpected issue status ${response.status}`,
+              );
+            }
+            return createdIssueSchema.parse(response.data);
+          } catch (error) {
+            throw toGithubError(error);
+          }
+        },
+        async findIssueByMarker(input) {
+          try {
+            for (let page = 1; page <= RECONCILE_PAGES; page++) {
+              const response = await withTimeout(
+                "reconcile issues",
+                octokit.request("GET /repos/{owner}/{repo}/issues", {
+                  owner: input.owner,
+                  repo: input.repo,
+                  state: "all",
+                  per_page: RECONCILE_PER_PAGE,
+                  page,
+                  sort: "created",
+                  direction: "desc",
+                }),
+              );
+              const issues = Array.isArray(response.data) ? response.data : [];
+              for (const issue of issues) {
+                const body =
+                  typeof issue === "object" && issue !== null
+                    ? (issue as { body?: unknown }).body
+                    : undefined;
+                if (typeof body === "string" && body.includes(input.marker)) {
+                  return createdIssueSchema.parse({
+                    id: (issue as { id: unknown }).id,
+                    number: (issue as { number: unknown }).number,
+                    html_url: (issue as { html_url: unknown }).html_url,
+                  });
+                }
+              }
+              if (issues.length < RECONCILE_PER_PAGE) break;
+            }
+            return undefined;
+          } catch (error) {
+            throw toGithubError(error);
+          }
+        },
+        async listLabels(input) {
+          try {
+            const response = await withTimeout(
+              "list labels",
+              octokit.request("GET /repos/{owner}/{repo}/labels", {
+                owner: input.owner,
+                repo: input.repo,
+                per_page: 100,
+              }),
+            );
+            const labels = Array.isArray(response.data) ? response.data : [];
+            return labels
+              .map((label) =>
+                typeof label === "object" && label !== null
+                  ? (label as { name?: unknown }).name
+                  : undefined,
+              )
+              .filter((name): name is string => typeof name === "string");
+          } catch (error) {
+            throw toGithubError(error);
+          }
+        },
+      };
+    },
+  };
+}

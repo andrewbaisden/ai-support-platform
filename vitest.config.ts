@@ -9,6 +9,7 @@ export default defineConfig({
       "apps/**/*.test.ts",
       "apps/**/*.test.tsx",
       "packages/ai/**/*.test.ts",
+      "packages/github/**/*.test.ts",
       "packages/widget/**/*.test.tsx",
     ],
   },

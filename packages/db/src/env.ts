@@ -28,7 +28,9 @@ export function loadRootEnv() {
   candidates.push(join(process.cwd(), ".env"));
   candidates.push(join(process.cwd(), "..", "..", ".env"));
   for (const path of candidates) {
-    if (existsSync(path)) loadDotEnv({ path });
+    // quiet: dotenv v18 reports via console.error, which Next.js dev
+    // surfaces as a blocking error overlay in the browser.
+    if (existsSync(path)) loadDotEnv({ path, quiet: true });
   }
 }
 

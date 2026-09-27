@@ -50,6 +50,14 @@ The Phase 4 widget receives only a public project key and an injected submission
 
 The local Compose password and URLs in `.env.example` are development-only. `.env` is ignored. Database integration tests require `DATABASE_URL_TEST` to point to localhost and a database ending `_test` before they truncate test tables; CI uses a dedicated PostgreSQL service. Do not point this variable at a production instance.
 
+## GitHub escalation (implemented in Phase 7)
+
+Escalation runs through a GitHub App (Issues read/write, Metadata read-only) with operator preview and confirmation — never automatic, never from visitor input. `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` are server-only env read only when escalation runs; JWT signing and short-lived installation-token minting stay inside the official SDK, and tokens are never persisted, logged, or sent to browsers. Installation/repository identity comes from the stored project integration, never from visitor text or request parameters.
+
+Issue content is deterministic: bounded title, structured body with sanitized report and a `<!-- ai-support-ticket:SUP-n -->` marker, labels intersected with existing repository labels. The privacy gate blocks emails, private keys, API tokens, credential assignments, and card numbers for human review and never logs matched values; regexes reduce accidents but do not prove safety, so questionable content stays unpublished. Responses and dashboard output expose only number, URL (validated `https://github.com` before rendering as a link), and safe error codes — never tokens or raw API bodies.
+
+Idempotency is layered: the intent row (unique per ticket) plus the stable marker plus reconcile-before-every-create plus the unique remote-ID constraint. Timeouts mark `needs_reconciliation` for owner-driven retry; failures mark `retry_required`. A real duplicate-remote-ID collision during verification (mock IDs shared across tickets) confirmed the constraint fires correctly; mock IDs now derive from the marker. Rate limits (429/403-rate-limit) surface safe retry guidance without aggressive retries.
+
 ## Logs, retention, and incident response
 
 Log ticket IDs, project IDs, provider/operation status, webhook delivery IDs, latency, and safe error codes. Do not log raw messages, contact information, API keys, webhook bodies, provider prompts, or complete GitHub issue payloads. Set retention and deletion policy before live deployment, including how contact data and webhook diagnostics are removed. Rotate compromised credentials and public project keys, disable a project integration when needed, and reconcile remote issues after incidents or ambiguous API outcomes.

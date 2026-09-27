@@ -12,6 +12,7 @@
     "@ai-support-platform/ai": "workspace:*",
     "@ai-support-platform/auth": "workspace:*",
     "@ai-support-platform/db": "workspace:*",
+    "@ai-support-platform/github": "workspace:*",
     "@ai-support-platform/support-contracts": "workspace:*",
     "better-auth": "1.7.6",
     "next": "^16.0.0",

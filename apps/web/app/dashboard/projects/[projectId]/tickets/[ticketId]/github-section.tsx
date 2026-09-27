@@ -1,0 +1,175 @@
+"use client";
+
+import type { EscalationPreview } from "@ai-support-platform/github";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+type CreateResult =
+  | {
+      ok: true;
+      outcome: { outcome: string; issue?: { number: number; url: string } };
+    }
+  | { ok: false; error: string };
+
+function isGithubUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "github.com";
+  } catch {
+    return false;
+  }
+}
+
+function AlreadyLinkedIssue({
+  number,
+  url,
+}: {
+  number: number | null;
+  url: string | null;
+}) {
+  if (url && isGithubUrl(url) && number !== null) {
+    return (
+      <p role="status">
+        Linked issue{" "}
+        <a
+          className="font-medium text-blue-700 underline"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          #{number}
+        </a>
+      </p>
+    );
+  }
+  return <p role="status">Linked issue recorded (pending link details).</p>;
+}
+
+export function GitHubSection({
+  projectId,
+  ticketId,
+  initial,
+}: {
+  projectId: string;
+  ticketId: string;
+  initial: EscalationPreview;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<CreateResult | null>(null);
+
+  async function create() {
+    setPending(true);
+    try {
+      const fetchImpl = fetch;
+      const response = await fetchImpl(
+        `/api/dashboard/tickets/${ticketId}/github`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, action: "create" }),
+        },
+      );
+      const payload = (await response.json().catch(() => undefined)) as
+        | CreateResult
+        | undefined;
+      setResult(payload ?? { ok: false, error: "INVALID_RESPONSE" });
+      if (payload?.ok) router.refresh();
+    } catch {
+      setResult({ ok: false, error: "NETWORK_ERROR" });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 text-sm">
+      {initial.state === "not-configured" && (
+        <p role="status" className="text-slate-600">
+          No GitHub repository is connected to this project yet. Connect one to
+          enable escalation.
+        </p>
+      )}
+      {initial.state === "already-linked" && (
+        <AlreadyLinkedIssue
+          number={initial.issue.number}
+          url={initial.issue.url}
+        />
+      )}
+      {initial.state === "unknown" && (
+        <div>
+          <p role="alert" className="text-amber-800">
+            A previous creation attempt has unknown outcome. Retrying first
+            reconciles by marker, never blind-retries.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => void create()}
+            className="mt-2 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {pending ? "Reconciling…" : "Reconcile and retry"}
+          </button>
+        </div>
+      )}
+      {initial.state === "blocked" && (
+        <div role="status" className="text-slate-600">
+          <p>Escalation unavailable: {initial.code}.</p>
+          <ul className="mt-1 list-disc pl-5">
+            {initial.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {initial.state === "eligible" && (
+        <div>
+          <p>
+            Target repository:{" "}
+            <strong>
+              {initial.repository.owner}/{initial.repository.repo}
+            </strong>
+          </p>
+          <details className="mt-2 rounded bg-slate-50 p-3">
+            <summary className="cursor-pointer font-medium">
+              Preview issue content
+            </summary>
+            <p className="mt-2 font-semibold">{initial.draft.title}</p>
+            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">
+              {initial.draft.body}
+            </pre>
+            <p className="mt-2 text-xs text-slate-500">
+              Labels: {initial.candidateLabels.join(", ") || "none"}{" "}
+              (intersected with repository labels at creation)
+            </p>
+          </details>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => void create()}
+            className="mt-3 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {pending ? "Creating issue…" : "Create GitHub issue"}
+          </button>
+        </div>
+      )}
+      {result && !result.ok && (
+        <p role="alert" className="mt-2 text-red-700">
+          Action failed: {result.error}
+        </p>
+      )}
+      {result?.ok && result.outcome && (
+        <p role="status" className="mt-2 text-emerald-800">
+          {result.outcome.outcome === "already-linked"
+            ? "Issue already linked."
+            : result.outcome.outcome === "reconciled"
+              ? `Reconciled with existing issue #${result.outcome.issue?.number}.`
+              : result.outcome.outcome === "created"
+                ? `Issue created${result.outcome.issue ? ` (#${result.outcome.issue.number})` : ""}.`
+                : "Done."}
+        </p>
+      )}
+    </div>
+  );
+}

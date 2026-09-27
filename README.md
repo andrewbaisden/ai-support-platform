@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 6: support dashboard and human review**. Operators sign in with email/password (Better Auth) to browse projects, filter tickets, inspect reports with AI classifications and history, re-run triage, record review overrides with authorship, and resolve/reopen tickets. No GitHub calls or generative AI exist yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 7: GitHub issue escalation**. Operators confirm eligible tickets in the dashboard to create real GitHub issues via a GitHub App (mock adapter in tests/E2E); linkage, events, privacy gating, and idempotent reconciliation are implemented. No webhooks or generative AI exist yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -28,6 +28,7 @@ apps/demo/                Controlled consumer app shell (mock or real API mode)
 packages/auth/            Better Auth instance, session/membership helpers, owner bootstrap
 packages/ai/              Provider-neutral triage: classifier interface, Jev adapter, fixture classifier, policy, triage service, CLIs
 packages/db/              Drizzle schema, migrations, seed, scoped repository
+packages/github/          GitHub App client, deterministic issue drafts, privacy gate, escalation service, mock adapter, CLIs
 packages/widget/          React support widget, HTTP submission client, bundled styles
 packages/support-contracts/ Narrow public submission request/response/error schemas
 e2e/                      Browser smoke, widget, and ingestion flows
@@ -35,7 +36,7 @@ e2e/                      Browser smoke, widget, and ingestion flows
 docs/handoffs/            Phase handoffs
 ```
 
-AI and GitHub packages arrive with their phases: `packages/ai` now owns triage while the GitHub package waits for Phase 7. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, React Hook Form, Zod, Vitest, React Testing Library, Playwright, and the official `@typesafe-ai/sdk` (server-only triage use). Better Auth, shadcn/ui, and TanStack Query arrive only when their features need them; Zustand is not planned.
+AI, GitHub, and dashboard packages arrive with their phases: `packages/ai` owns triage, `packages/auth` owns dashboard access, and `packages/github` now owns escalation. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, React Hook Form, Zod, Vitest, React Testing Library, Playwright, the official `@typesafe-ai/sdk` (server-only triage use), and the official `@octokit/app` SDK (server-only GitHub use). Better Auth, shadcn/ui, and TanStack Query arrive only when their features need them; Zustand is not planned.
 
 ## Local development
 
@@ -91,6 +92,12 @@ Sign in at `/login` with the seeded owner account (`SEED_OWNER_EMAIL`, local onl
 
 Set `NEXT_PUBLIC_SUPPORT_API_URL` (documented in `.env.example`) when the demo or an external consumer must target a non-default API base URL; same-origin/local defaults apply otherwise. `DATABASE_URL` stays server-only.
 
+## GitHub issue escalation (Phase 7)
+
+Eligible tickets (`bug` + `engineering` + confidence ≥ 0.90 + human recommendation standing) show a GitHub section on the detail page with the target repository, a deterministic issue preview (title, Markdown body, labels, correlation marker), and a confirm button. Creation mints a short-lived installation token via the GitHub App, posts `POST /repos/{owner}/{repo}/issues`, persists the linkage (`github_issues`: remote ID, number, URL, `open`), and records timeline events — without changing ticket status. Retries and double-clicks reconcile by marker first and never blind-retry; timeouts mark `needs_reconciliation`. A deterministic privacy gate blocks emails, keys, tokens, credentials, and card numbers for human review. No generative AI is involved.
+
+Connect a project with `pnpm github:connect` (GitHub App with Issues read/write + Metadata read, installed on a disposable repository first); create from the dashboard or `pnpm github:escalate --ticket <uuid>` (mock by default, `--live` needs `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY`). `GITHUB_ESCALATION_MOCK=1` fakes only the GitHub network for E2E. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md), and `docs/handoffs/phase-07.md`.
+
 ## Local PostgreSQL
 
 Docker Compose starts only PostgreSQL 16 and creates separate development and test databases. Port `54339` is bound to loopback, with a persistent Compose volume. Docker is optional for developers who provide equivalent local PostgreSQL URLs.
@@ -120,7 +127,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 7 begins only after review of the Phase 6 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 8 begins only after review of the Phase 7 handoff.
 
 ## Documentation
 

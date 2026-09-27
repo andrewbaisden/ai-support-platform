@@ -1,0 +1,28 @@
+{
+  "name": "@ai-support-platform/github",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run --config vitest.config.ts",
+    "github:connect": "tsx src/cli/connect.ts",
+    "github:escalate": "tsx src/cli/escalate.ts"
+  },
+  "dependencies": {
+    "@ai-support-platform/ai": "workspace:*",
+    "@ai-support-platform/db": "workspace:*",
+    "@octokit/app": "16.1.4",
+    "drizzle-orm": "^0.45.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "dotenv": "^18.0.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}
