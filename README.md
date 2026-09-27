@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 4: public ticket ingestion**. The demo submits through a real HTTP client to `POST /api/v1/support/tickets`, which validates, rate-limits, and persists Conversation, Message, Ticket, and TicketEvent in PostgreSQL before any future AI or GitHub work. No classifier, generator, GitHub call, webhook, dashboard, or authentication exists yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 5: Jev AI triage**. Accepted tickets are classified by a provider-neutral `TicketClassifier` (Jev adapter plus deterministic fixture), persisted as append-only `TicketClassification` history with policy-derived route and GitHub-escalation eligibility, and moved out of `needs_triage`. No GitHub call, dashboard, generative AI, or authentication exists yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -25,6 +25,7 @@ The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion
 ```text
 apps/web/                 Platform app shell and public ticket API
 apps/demo/                Controlled consumer app shell (mock or real API mode)
+packages/ai/              Provider-neutral triage: classifier interface, Jev adapter, fixture classifier, policy, triage service, CLIs
 packages/db/              Drizzle schema, migrations, seed, scoped repository
 packages/widget/          React support widget, HTTP submission client, bundled styles
 packages/support-contracts/ Narrow public submission request/response/error schemas
@@ -33,7 +34,7 @@ e2e/                      Browser smoke, widget, and ingestion flows
 docs/handoffs/            Phase handoffs
 ```
 
-AI and GitHub packages will be created when their phases need them. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, React Hook Form, Zod, Vitest, React Testing Library, and Playwright. Better Auth, shadcn/ui, and TanStack Query arrive only when their features need them; Zustand is not planned.
+AI and GitHub packages arrive with their phases: `packages/ai` now owns triage while the GitHub package waits for Phase 7. The current stack is Node.js 24, pnpm 11, Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16, Drizzle, Biome, Tailwind CSS in the platform shell, React Hook Form, Zod, Vitest, React Testing Library, Playwright, and the official `@typesafe-ai/sdk` (server-only triage use). Better Auth, shadcn/ui, and TanStack Query arrive only when their features need them; Zustand is not planned.
 
 ## Local development
 
@@ -79,6 +80,10 @@ pnpm test:e2e
 
 Set `NEXT_PUBLIC_SUPPORT_API_URL` (documented in `.env.example`) when the demo or an external consumer must target a non-default API base URL; same-origin/local defaults apply otherwise. `DATABASE_URL` stays server-only.
 
+## AI triage (Phase 5)
+
+`pnpm ai:triage --pending` classifies `needs_triage` tickets (or `--ticket <uuid>` for one) with the mock fixture classifier by default; `--classifier jev` uses live Jev and requires `TYPESAFE_API_KEY`. Each decision persists a `TicketClassification` row with type, severity, policy route, GitHub-escalation recommendation, confidence, and provenance, and moves the ticket to `queued` (bugs to `engineering`, questions to `support`, features to `product`) or `quarantined` (spam). Visitor contact details are never sent to Jev — only the message and category hint. `pnpm ai:evaluate` runs the versioned fixture set (mock must pass 7/7; live only reports observations). Triage never blocks ingestion: the public API is unchanged and accepted tickets survive provider failures in `needs_triage` with a `triage_failed` event. See [AI_ENGINEERING.md](AI_ENGINEERING.md) and `docs/handoffs/phase-05.md`.
+
 ## Local PostgreSQL
 
 Docker Compose starts only PostgreSQL 16 and creates separate development and test databases. Port `54339` is bound to loopback, with a persistent Compose volume. Docker is optional for developers who provide equivalent local PostgreSQL URLs.
@@ -108,7 +113,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 5 begins only after review of the Phase 4 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 6 begins only after review of the Phase 5 handoff.
 
 ## Documentation
 

@@ -1,5 +1,9 @@
 export { createDatabase, type Database } from "./client";
-export { loadRootEnv, requireDatabaseUrl } from "./env";
+export {
+  loadRootEnv,
+  requireDatabaseUrl,
+  requireSafeTestDatabaseUrl,
+} from "./env";
 export {
   type ClassificationInput,
   classificationInputSchema,

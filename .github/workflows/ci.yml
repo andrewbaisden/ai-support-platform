@@ -38,4 +38,6 @@ jobs:
       - run: pnpm test
       - run: pnpm db:check
       - run: pnpm test:db
+      - run: pnpm test:ai
+      - run: pnpm ai:evaluate
       - run: pnpm build

@@ -1,0 +1,27 @@
+{
+  "name": "@ai-support-platform/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run --config vitest.config.ts",
+    "ai:triage": "tsx src/cli/triage.ts",
+    "ai:evaluate": "tsx src/cli/evaluate.ts"
+  },
+  "dependencies": {
+    "@ai-support-platform/db": "workspace:*",
+    "@typesafe-ai/sdk": "0.6.0",
+    "drizzle-orm": "^0.45.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "dotenv": "^18.0.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}

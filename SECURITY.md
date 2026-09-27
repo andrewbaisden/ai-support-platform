@@ -7,7 +7,11 @@ Security controls are required at each boundary, not added only during hardening
 1. **Host website → widget:** The host can inspect or alter widget props. The project key is public identification, not a credential. No server key belongs in the package, page source, network request, or source map.
 2. **Widget → public API:** Every field, including category hint, origin, idempotency key, and message, is untrusted. Browser origin restrictions reduce casual misuse but are not authentication because non-browser clients can forge `Origin`.
 3. **Dashboard → services:** Better Auth establishes owner identity when added. Every project operation must also check workspace membership and project ownership. Client-provided project IDs do not grant access.
-4. **Platform → AI and GitHub:** Provider adapters receive minimum data. Visitor content never controls credentials, repository selection, system instructions, or tool invocation.
+4. **Platform → AI and GitHub:** Provider adapters receive minimum data. Visitor content never controls credentials, repository selection, system instructions, or tool invocation. Jev receives only the visitor message and optional category hint — never name, email, IDs, workspace secrets, or GitHub credentials. The `TYPESAFE_API_KEY` is server-only, validated only in live-triage contexts, and never logged; the adapter pins SDK log level to `warn` so request bodies are never logged.
+
+## AI triage (implemented in Phase 5)
+
+Classification input is `{ message, categoryHint? }`, validated by Zod that strips anything else. The official SDK refuses browser runtimes, and the adapter is never imported by widget, demo, or web client code. Normalized confidence comes from the selected type label's probability; missing or out-of-range values fail closed to `AI_SCHEMA_VALIDATION_FAILED` with the ticket left in `needs_triage`. Internal error codes (`AI_PROVIDER_UNAVAILABLE`, `AI_TIMEOUT`, `AI_INVALID_RESPONSE`, `AI_SCHEMA_VALIDATION_FAILED`, `AI_MISCONFIGURED`) never reach the widget — the visitor already holds ticket acceptance. Stored classifications carry type, severity, route, recommendation, confidence, and provenance only; no raw provider payloads. TypeSafe data-retention terms for submitted text were not verified; review them before production use.
 5. **GitHub → webhook API:** Verify a signature over the untouched raw request body before parsing or writing state. The signed payload still needs schema, event, installation, repository, and linked issue checks.
 
 ## Public ingestion (implemented in Phase 4)

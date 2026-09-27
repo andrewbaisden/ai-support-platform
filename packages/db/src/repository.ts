@@ -231,6 +231,83 @@ export function createSupportRepository(db: Database) {
 
     getTicketForProject,
 
+    async listTicketsNeedingTriage(limit: number) {
+      const take = z.number().int().min(1).max(100).parse(limit);
+      return db
+        .select({
+          ticketId: tickets.id,
+          projectId: tickets.projectId,
+          workspaceId: projects.workspaceId,
+          status: tickets.status,
+        })
+        .from(tickets)
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .where(eq(tickets.status, "needs_triage"))
+        .orderBy(tickets.createdAt)
+        .limit(take);
+    },
+
+    async findTicketContext(ticketId: string) {
+      const validated = z.uuid().parse(ticketId);
+      const [row] = await db
+        .select({
+          ticketId: tickets.id,
+          projectId: tickets.projectId,
+          workspaceId: projects.workspaceId,
+          status: tickets.status,
+        })
+        .from(tickets)
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .where(eq(tickets.id, validated))
+        .limit(1);
+      return row;
+    },
+
+    async getTicketSubmissionText(projectId: string, ticketId: string) {
+      const [ticket] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, ticketId), eq(tickets.projectId, projectId)))
+        .limit(1);
+      if (!ticket) return undefined;
+      const [message] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.projectId, projectId),
+            eq(messages.conversationId, ticket.conversationId),
+            eq(messages.role, "visitor"),
+          ),
+        )
+        .orderBy(messages.createdAt)
+        .limit(1);
+      if (!message) return undefined;
+      return {
+        ticketId: ticket.id,
+        projectId: ticket.projectId,
+        categoryHint: ticket.categoryHint,
+        message: message.body,
+      };
+    },
+
+    async recordTicketEvent(input: {
+      projectId: string;
+      ticketId: string;
+      type: string;
+    }) {
+      const valid = z
+        .object({
+          projectId: z.uuid(),
+          ticketId: z.uuid(),
+          type: z.string().trim().min(1).max(80),
+        })
+        .parse(input);
+      const [event] = await db.insert(ticketEvents).values(valid).returning();
+      if (!event) throw new Error("Ticket event insert did not return a row");
+      return event;
+    },
+
     async getCurrentClassificationForProject(
       workspaceId: string,
       projectId: string,
@@ -266,6 +343,22 @@ export function createSupportRepository(db: Database) {
         )
         .orderBy(desc(tickets.ticketNumber));
       return rows.map((row) => row.ticket);
+    },
+
+    async listTicketEvents(projectId: string, ticketId: string) {
+      const validated = z
+        .object({ projectId: z.uuid(), ticketId: z.uuid() })
+        .parse({ projectId, ticketId });
+      return db
+        .select()
+        .from(ticketEvents)
+        .where(
+          and(
+            eq(ticketEvents.projectId, validated.projectId),
+            eq(ticketEvents.ticketId, validated.ticketId),
+          ),
+        )
+        .orderBy(ticketEvents.createdAt);
     },
 
     async appendClassification(

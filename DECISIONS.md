@@ -118,8 +118,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** `packages/support-contracts` must stay limited to cross-boundary contracts; database, AI, and GitHub types stay out. Quota tuning is a policy change, not a schema change. The fingerprint version prefix allows future input changes without silent collisions.
 
+## ADR-017 — Provider-neutral AI triage with deterministic policy
+
+**Decision:** Put the classifier boundary in `packages/ai`: a `TicketClassifier` interface, Zod input/result schemas, a `JevTicketClassifier` adapter over one `systemOne` call (type + severity choices), a deterministic `FixtureTicketClassifier` test double, and a `triageTicket` application service that persists through the existing `appendClassification` transaction. Route and GitHub eligibility are derived by deterministic policy code (`routeForType`, `evaluateGitHubEscalation`, 0.90 threshold in `config.ts`), never trusted model fields. Triage runs explicitly via `pnpm ai:triage`, never inside the ingestion request; failures record `triage_failed` and keep tickets in `needs_triage`.
+
+**Why:** Jev supplies bounded judgment; code owns routing, thresholds, and side effects, so a future provider swaps behind the same interface. Explicit invocation keeps ticket acceptance independent of Jev with no queue infrastructure; SDK-internal retries plus manual re-triage bound the retry behavior. Storing eligibility as `githubIssueRecommended` prepares Phase 7 without performing any GitHub call.
+
+**Consequence:** `packages/ai` core never imports the database (the service takes a narrow repository port; only the CLI wires the real repository). Low-confidence results still route with an audit reason; the owner review surface arrives with the Phase 6 dashboard. Reclassification appends history; concurrent runs converge via the existing guarded transition.
+
 ## Open operational inputs
 
-- TypeSafe/Jev account access is needed before the optional live classifier test in Phase 5.
+- TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.
 - A disposable GitHub repository and GitHub App registration are needed in Phase 7; never use the portfolio repository as the initial test target.
 - Hosting, managed PostgreSQL provider, and worker scheduling details are chosen before deployment. The application contracts above do not depend on a specific provider.
