@@ -9,6 +9,7 @@ import {
   integer,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -182,6 +183,9 @@ export const tickets = pgTable(
     conversationId: uuid("conversation_id").notNull(),
     submissionKey: uuid("submission_key"),
     requestFingerprint: text("request_fingerprint"),
+    categoryHint: text("category_hint").$type<
+      "question" | "bug" | "feature_request"
+    >(),
     status: text("status")
       .$type<TicketStatus>()
       .default("needs_triage")
@@ -216,6 +220,25 @@ export const tickets = pgTable(
       "tickets_route_check",
       sql`${table.route} IS NULL OR ${table.route} IN ('support', 'product', 'engineering', 'ignore')`,
     ),
+    check(
+      "tickets_category_hint_check",
+      sql`${table.categoryHint} IS NULL OR ${table.categoryHint} IN ('question', 'bug', 'feature_request')`,
+    ),
+  ],
+);
+
+export const submissionRateLimits = pgTable(
+  "submission_rate_limits",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "restrict" }),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.windowStart] }),
+    check("submission_rate_limits_count_check", sql`${table.count} > 0`),
   ],
 );
 

@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 3: internal support widget**. The demo uses a local mock submission client; ticket ingestion HTTP endpoints and live product workflows are not implemented yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 4: public ticket ingestion**. The demo submits through a real HTTP client to `POST /api/v1/support/tickets`, which validates, rate-limits, and persists Conversation, Message, Ticket, and TicketEvent in PostgreSQL before any future AI or GitHub work. No classifier, generator, GitHub call, webhook, dashboard, or authentication exists yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -23,11 +23,12 @@ The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion
 ## Repository layout
 
 ```text
-apps/web/                 Platform app shell; future UI and API
-apps/demo/                Controlled consumer app shell
+apps/web/                 Platform app shell and public ticket API
+apps/demo/                Controlled consumer app shell (mock or real API mode)
 packages/db/              Drizzle schema, migrations, seed, scoped repository
-packages/widget/          Internal React support widget and bundled styles
-e2e/                      Browser smoke and widget flows
+packages/widget/          React support widget, HTTP submission client, bundled styles
+packages/support-contracts/ Narrow public submission request/response/error schemas
+e2e/                      Browser smoke, widget, and ingestion flows
 .github/workflows/ci.yml  Repository verification
 docs/handoffs/            Phase handoffs
 ```
@@ -45,22 +46,22 @@ pnpm dev
 
 The platform shell runs at `http://127.0.0.1:3000`; the demo runs at `http://127.0.0.1:3001`. `pnpm dev:web` and `pnpm dev:demo` run them individually.
 
-The demo exercises the internal widget with light/dark/system themes, left/right positioning, and a mock failure toggle. It sends no ticket to the backend. The package builds before the demo starts and exports compiled JavaScript and TypeScript declarations.
+The demo exercises the internal widget with light/dark/system themes, left/right positioning, and a mock failure toggle. Its submission-mode control selects a local mock (default, no database) or the real local API. Real mode posts through `HttpSupportSubmissionClient` to the platform app and shows the returned `SUP-<number>` reference. The package builds before the demo starts and exports compiled JavaScript and TypeScript declarations.
 
 ```tsx
-import { SupportWidget, type SupportSubmissionClient } from "@ai-support-platform/widget";
+import {
+  HttpSupportSubmissionClient,
+  SupportWidget,
+} from "@ai-support-platform/widget";
 
-const submissionClient: SupportSubmissionClient = {
-  async submit(_input) {
-    // Supply a local mock in Phase 3; the public API adapter arrives in Phase 4.
-    return { reference: "SUP-DEMO-001" };
-  },
-};
+const submissionClient = new HttpSupportSubmissionClient({
+  apiBaseUrl: "https://api.support-platform.example",
+});
 
 <SupportWidget projectKey="pk_..." submissionClient={submissionClient} />;
 ```
 
-The widget supports `position`, `theme`, `categories`, `title`, and `defaultOpen`. Its styles are bundled into the component and injected into a Shadow DOM, so consumers need no stylesheet or Tailwind configuration. The project key is public identification, not authorization. Demo references are visibly fake and no backend ticket is created.
+A plain `SupportSubmissionClient` object (for example `{ submit: async () => ({ reference: "SUP-DEMO-001" }) }`) still works for deterministic UI development. The widget supports `position`, `theme`, `categories`, `title`, and `defaultOpen`. Its styles are bundled into the component and injected into a Shadow DOM, so consumers need no stylesheet or Tailwind configuration. The project key is public identification, not authorization. Mock references are visibly fake and create no backend ticket.
 
 ```sh
 pnpm lint
@@ -70,7 +71,13 @@ pnpm build
 pnpm test:e2e
 ```
 
-`pnpm format` applies Biome formatting. `pnpm test:e2e` needs Playwright Chromium; install it with `pnpm exec playwright install chromium` if absent. Both apps use Next.js 16's supported Webpack option because Turbopack's PostCSS worker could not bind a local port in the Phase 1 development environment; see [DECISIONS.md](DECISIONS.md).
+`pnpm format` applies Biome formatting. `pnpm test:e2e` needs Playwright Chromium; install it with `pnpm exec playwright install chromium` if absent. It builds the shared packages once, then serves both apps (`pnpm dev:e2e`); the ingestion specs additionally need a migrated and seeded development database (`pnpm db:migrate && pnpm db:seed`) because they submit through the real API. Both apps use Next.js 16's supported Webpack option because Turbopack's PostCSS worker could not bind a local port in the Phase 1 development environment; see [DECISIONS.md](DECISIONS.md).
+
+## Public ticket ingestion (Phase 4)
+
+`POST /api/v1/support/tickets` accepts `{ projectKey, category, message, contact?, submissionId }` as JSON (16 KB body limit) and returns `{ ticketReference: "SUP-<number>", status: "received" }`. The server resolves the project from `projectKey`, checks the browser `Origin` against the project's allowed origins, validates with Zod, applies a per-project hourly rate limit, and creates Conversation, visitor Message, Ticket (`needs_triage` with the visitor category stored only as `categoryHint`), and a `submitted` event in one transaction. Retrying the same `submissionId` with identical content returns the same reference; the same key with different content is a `409` conflict. No AI, GitHub, authentication, or background worker is involved. Request/response/error schemas live in `packages/support-contracts`, shared by the API and the widget's `HttpSupportSubmissionClient`; the widget never imports database, server, AI, or GitHub types. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md), and `docs/handoffs/phase-04.md` for the contract, idempotency, origin/CORS, and rate-limit details.
+
+Set `NEXT_PUBLIC_SUPPORT_API_URL` (documented in `.env.example`) when the demo or an external consumer must target a non-default API base URL; same-origin/local defaults apply otherwise. `DATABASE_URL` stays server-only.
 
 ## Local PostgreSQL
 
@@ -101,7 +108,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 4 begins only after review of the Phase 3 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 5 begins only after review of the Phase 4 handoff.
 
 ## Documentation
 

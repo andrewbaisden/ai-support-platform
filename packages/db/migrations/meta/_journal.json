@@ -15,6 +15,13 @@
       "when": 1790456713461,
       "tag": "0001_futuristic_mach_iv",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790466913940,
+      "tag": "0002_broad_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

@@ -110,6 +110,14 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** The host must allow inline styles under its Content Security Policy for this first version. Phase 11 must test a strict CSP consumer and choose a compatible stylesheet or nonce strategy before npm publication. The browser key remains public identification and the demo reference is fake. React and React DOM are peers; the package does not depend on Next.js, the database, or platform secrets.
 
+## ADR-016 — Narrow support contracts and database-backed ingestion limits
+
+**Decision:** Share only the stable public submission request/response/error Zod schemas through a narrow `packages/support-contracts` package imported by both the widget and the API. Enforce the per-project hourly ingestion quota (120 submissions) with an atomic upsert on a `submission_rate_limits` table rather than in-memory state, and compute the retry fingerprint server-side as versioned SHA-256 over normalized category, message, and contact content. Keep route handlers limited to HTTP concerns; the `support-ingestion` application service owns project resolution, origin comparison, quota, fingerprinting, and the transactional write.
+
+**Why:** A small shared schema package keeps the widget/API contract identical without a generic types barrel or server imports in browser code. An in-memory limiter would misreport quota across serverless instances; a database row per project/hour is correct under concurrency and stores no client IP. Server-computed fingerprints keep retry comparison trustworthy because browser input is untrusted.
+
+**Consequence:** `packages/support-contracts` must stay limited to cross-boundary contracts; database, AI, and GitHub types stay out. Quota tuning is a policy change, not a schema change. The fingerprint version prefix allows future input changes without silent collisions.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed before the optional live classifier test in Phase 5.

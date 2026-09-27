@@ -1,9 +1,8 @@
 {
-  "name": "@ai-support-platform/widget",
+  "name": "@ai-support-platform/support-contracts",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -15,20 +14,10 @@
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit"
   },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
   "dependencies": {
-    "@ai-support-platform/support-contracts": "workspace:*",
-    "@hookform/resolvers": "^5.6.0",
-    "react-hook-form": "^7.0.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
     "typescript": "^5.9.0"
   }
 }

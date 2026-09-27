@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { z } from "zod";
 
@@ -12,7 +15,21 @@ const databaseUrlSchema = z
   );
 
 export function loadRootEnv() {
-  loadDotEnv({ path: new URL("../../../.env", import.meta.url) });
+  // import.meta.url is unreliable once a bundler (Next.js webpack) transpiles
+  // this module, so fall back to working-directory candidates. dotenv never
+  // overrides variables that are already set, so loading every candidate that
+  // exists is safe. Deployed environments must provide DATABASE_URL directly.
+  const candidates: string[] = [];
+  try {
+    candidates.push(fileURLToPath(new URL("../../../.env", import.meta.url)));
+  } catch {
+    // Bundler rewrote import.meta.url; rely on the candidates below.
+  }
+  candidates.push(join(process.cwd(), ".env"));
+  candidates.push(join(process.cwd(), "..", "..", ".env"));
+  for (const path of candidates) {
+    if (existsSync(path)) loadDotEnv({ path });
+  }
 }
 
 export function requireDatabaseUrl(name: "DATABASE_URL" | "DATABASE_URL_TEST") {

@@ -5,9 +5,12 @@ export const supportFormSchema = z.object({
   category: z.enum(supportCategories, { error: "Choose a topic." }),
   message: z
     .string()
-    .trim()
     .min(10, "Tell us a little more (at least 10 characters).")
-    .max(10_000, "Keep your message under 10,000 characters."),
+    .max(10_000, "Keep your message under 10,000 characters.")
+    .refine(
+      (value) => value.trim().length >= 10,
+      "Tell us a little more (at least 10 characters).",
+    ),
   name: z.string().trim().max(120, "Keep your name under 120 characters."),
   email: z.union([
     z.literal(""),

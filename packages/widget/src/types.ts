@@ -1,10 +1,7 @@
-export const supportCategories = [
-  "question",
-  "bug",
-  "feature_request",
-] as const;
+export type { SupportCategory } from "@ai-support-platform/support-contracts";
+export { supportCategories } from "@ai-support-platform/support-contracts";
 
-export type SupportCategory = (typeof supportCategories)[number];
+import type { SupportCategory } from "@ai-support-platform/support-contracts";
 export type WidgetPosition = "bottom-right" | "bottom-left";
 export type WidgetTheme = "light" | "dark" | "system";
 

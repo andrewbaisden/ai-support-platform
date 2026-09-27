@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./client";
 import {
@@ -15,6 +15,7 @@ import {
   githubIssues,
   messages,
   projects,
+  submissionRateLimits,
   ticketClassifications,
   ticketEvents,
   tickets,
@@ -24,6 +25,12 @@ import {
 
 export function ticketReference(ticketNumber: number) {
   return `SUP-${ticketNumber}`;
+}
+
+export class SubmissionConflictError extends Error {
+  constructor() {
+    super("Submission key was reused with different content");
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -52,7 +59,7 @@ export function createSupportRepository(db: Database) {
     requestFingerprint: string,
   ) {
     if (ticket.requestFingerprint !== requestFingerprint) {
-      throw new Error("Submission key was reused with different content");
+      throw new SubmissionConflictError();
     }
     return ticket;
   }
@@ -78,6 +85,35 @@ export function createSupportRepository(db: Database) {
   }
 
   return {
+    async getSubmissionForRetry(
+      projectId: string,
+      submissionKey: string,
+      requestFingerprint: string,
+    ) {
+      const existing = await getSubmission(projectId, submissionKey);
+      return existing
+        ? matchingSubmission(existing, requestFingerprint)
+        : undefined;
+    },
+    async consumeSubmissionRateLimit(
+      projectId: string,
+      windowStart: Date,
+      limit: number,
+    ) {
+      const [row] = await db
+        .insert(submissionRateLimits)
+        .values({ projectId, windowStart, count: 1 })
+        .onConflictDoUpdate({
+          target: [
+            submissionRateLimits.projectId,
+            submissionRateLimits.windowStart,
+          ],
+          set: { count: sql`${submissionRateLimits.count} + 1` },
+          setWhere: sql`${submissionRateLimits.count} < ${limit}`,
+        })
+        .returning({ count: submissionRateLimits.count });
+      return Boolean(row);
+    },
     async createWorkspace(name: string) {
       const validName = z.string().trim().min(1).max(120).parse(name);
       const [workspace] = await db
@@ -168,6 +204,7 @@ export function createSupportRepository(db: Database) {
               conversationId: conversation.id,
               submissionKey: valid.submissionKey,
               requestFingerprint: valid.requestFingerprint,
+              categoryHint: valid.categoryHint,
             })
             .returning();
           if (!ticket) throw new Error("Ticket insert did not return a row");

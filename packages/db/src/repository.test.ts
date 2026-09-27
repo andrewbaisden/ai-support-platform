@@ -132,6 +132,46 @@ describe("domain persistence", () => {
     ).rejects.toThrow("different content");
   });
 
+  it("keeps concurrent identical retries to a single logical ticket", async () => {
+    const { firstProject } = await twoTenants();
+    const message =
+      "The projects section becomes blank in Safari after switching to dark mode.";
+    const submissionKey = randomUUID();
+    const requestFingerprint = createHash("sha256")
+      .update(JSON.stringify([1, "bug", message, "", ""]))
+      .digest("hex");
+    const input = {
+      projectId: firstProject.id,
+      categoryHint: "bug" as const,
+      message,
+      submissionKey,
+      requestFingerprint,
+    };
+    const outcomes = await Promise.allSettled([
+      repository.createSubmission(input),
+      repository.createSubmission(input),
+      repository.createSubmission(input),
+    ]);
+    const ids: string[] = [];
+    for (const outcome of outcomes) {
+      expect(outcome.status).toBe("fulfilled");
+      if (outcome.status === "fulfilled") ids.push(outcome.value.id);
+    }
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids)).toHaveLength(1);
+    expect(await db.select().from(conversations)).toHaveLength(1);
+    expect(await db.select().from(tickets)).toHaveLength(1);
+    expect(await db.select().from(ticketEvents)).toHaveLength(1);
+    expect(await db.select().from(tickets)).toMatchObject([
+      {
+        submissionKey,
+        requestFingerprint,
+        categoryHint: "bug",
+        status: "needs_triage",
+      },
+    ]);
+  });
+
   it("prevents cross-project ticket and message links and isolates repository reads", async () => {
     const { firstWorkspace, secondWorkspace, firstProject, secondProject } =
       await twoTenants();

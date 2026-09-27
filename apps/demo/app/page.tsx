@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  HttpSupportSubmissionClient,
   type SupportSubmissionClient,
   SupportWidget,
   type WidgetPosition,
@@ -9,13 +10,14 @@ import {
 import { useRef, useState } from "react";
 
 export default function DemoPage() {
+  const [mode, setMode] = useState<"mock" | "real">("mock");
   const [theme, setTheme] = useState<WidgetTheme>("light");
   const [position, setPosition] = useState<WidgetPosition>("bottom-right");
   const [failSubmissions, setFailSubmissions] = useState(false);
   const [lastRequest, setLastRequest] = useState("");
   const sequence = useRef(0);
 
-  const submissionClient: SupportSubmissionClient = {
+  const mockClient: SupportSubmissionClient = {
     async submit(input) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (failSubmissions) throw new Error("Demo failure");
@@ -26,6 +28,12 @@ export default function DemoPage() {
       };
     },
   };
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_SUPPORT_API_URL ?? "http://127.0.0.1:3000";
+  const submissionClient: SupportSubmissionClient =
+    mode === "real"
+      ? new HttpSupportSubmissionClient({ apiBaseUrl })
+      : mockClient;
 
   return (
     <div className={`demo ${theme === "dark" ? "demo-dark" : ""}`}>
@@ -44,6 +52,17 @@ export default function DemoPage() {
             <h2 id="demo-controls-title">Consumer settings</h2>
           </div>
           <div className="demo-controls">
+            <label htmlFor="mode">Submission mode</label>
+            <select
+              id="mode"
+              value={mode}
+              onChange={(event) =>
+                setMode(event.target.value as "mock" | "real")
+              }
+            >
+              <option value="mock">Mock (no database)</option>
+              <option value="real">Real local API</option>
+            </select>
             <label htmlFor="theme">Theme</label>
             <select
               id="theme"
@@ -65,19 +84,23 @@ export default function DemoPage() {
               <option value="bottom-right">Bottom right</option>
               <option value="bottom-left">Bottom left</option>
             </select>
-            <label className="demo-check">
-              <input
-                type="checkbox"
-                checked={failSubmissions}
-                onChange={(event) => setFailSubmissions(event.target.checked)}
-              />
-              Simulate submission failure
-            </label>
+            {mode === "mock" && (
+              <label className="demo-check">
+                <input
+                  type="checkbox"
+                  checked={failSubmissions}
+                  onChange={(event) => setFailSubmissions(event.target.checked)}
+                />
+                Simulate submission failure
+              </label>
+            )}
           </div>
         </section>
 
         <section className="demo-note" aria-label="Demo result">
-          <span className="demo-status">Local mock only</span>
+          <span className="demo-status">
+            {mode === "mock" ? "Local mock only" : "Local API"}
+          </span>
           <p>
             {lastRequest
               ? `Last accepted demo request: ${lastRequest}`
@@ -86,7 +109,7 @@ export default function DemoPage() {
         </section>
       </main>
       <SupportWidget
-        projectKey="pk_DemoConsumerWidgetKey00000000000"
+        projectKey={`pk_${"A".repeat(32)}`}
         submissionClient={submissionClient}
         theme={theme}
         position={position}

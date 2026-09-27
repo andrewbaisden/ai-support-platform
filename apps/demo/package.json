@@ -9,6 +9,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ai-support-platform/support-contracts": "workspace:*",
     "@ai-support-platform/widget": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.0.0",

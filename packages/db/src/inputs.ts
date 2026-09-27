@@ -28,11 +28,16 @@ export const projectInputSchema = z.object({
 
 export const submissionInputSchema = z.object({
   projectId: z.uuid(),
-  message: z.string().trim().min(1).max(10_000),
+  message: z
+    .string()
+    .min(1)
+    .max(10_000)
+    .refine((value) => value.trim().length > 0),
   visitorName: z.string().trim().max(120).optional(),
   visitorEmail: z.email().max(320).optional(),
   submissionKey: z.uuid(),
   requestFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  categoryHint: z.enum(["question", "bug", "feature_request"]).optional(),
 });
 
 export const classificationInputSchema = z.object({
