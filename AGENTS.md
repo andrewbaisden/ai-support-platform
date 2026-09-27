@@ -1,6 +1,6 @@
 # Agent instructions
 
-This repository is an AI support platform with a reusable website widget. Read `README.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `AI_ENGINEERING.md`, `SECURITY.md`, `TESTING.md`, and the latest `docs/handoffs/` file before changing architecture. The current repository has completed Phase 8; do not start Phase 9 until the owner approves it. Each app also has Next.js-generated `AGENTS.md` guidance; read the relevant installed Next.js docs before changing framework code.
+This repository is an AI support platform with a reusable website widget. The public overview is in `README.md`; product boundaries, setup, and phase plans are in `docs/PRODUCT_SPEC.md`, `docs/DEVELOPMENT.md`, and `docs/ROADMAP.md`. Read those, `ARCHITECTURE.md`, `DECISIONS.md`, `AI_ENGINEERING.md`, `SECURITY.md`, `TESTING.md`, and the latest `docs/handoffs/` file before changing architecture. The current repository has completed Phase 8; do not start Phase 9 until the owner approves it. Each app also has Next.js-generated `AGENTS.md` guidance; read the relevant installed Next.js docs before changing framework code.
 
 ## Coding and package rules
 
@@ -28,7 +28,7 @@ Use Node.js 24 and pnpm 11.5.3. Run `pnpm install --frozen-lockfile`, `pnpm dev`
 - Tenant/project ownership is checked on every protected operation. A GitHub webhook updates only an issue linked to the matching installation and repository.
 - Jev makes bounded recommendations; deterministic code owns policy and side effects. Validate normalized AI output and keep low-confidence cases in review.
 - Never publish contact data, secrets, or raw private conversations to GitHub. Generated issue content passes the same publication checks as deterministic content.
-- Ticket submission, work retries, issue creation, and webhook processing require documented idempotency and recovery. Do not blindly retry an ambiguous GitHub issue creation.
+- Ticket submission, work retries, issue creation, and webhook processing require documented idempotency and recovery. Do not blindly retry an ambiguous GitHub issue creation. Claim `creating` before any GitHub call; never replace a confirmed remote ID. Reconcile only an exact opaque marker from this App bot in the verified repository. A stale `creating` row requires operator recovery.
 
 ## Workflow
 
