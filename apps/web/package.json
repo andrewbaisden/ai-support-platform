@@ -9,8 +9,11 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ai-support-platform/ai": "workspace:*",
+    "@ai-support-platform/auth": "workspace:*",
     "@ai-support-platform/db": "workspace:*",
     "@ai-support-platform/support-contracts": "workspace:*",
+    "better-auth": "1.7.6",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

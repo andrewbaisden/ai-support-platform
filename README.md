@@ -2,7 +2,7 @@
 
 A developer-focused support platform for websites and applications. An embeddable widget accepts visitor requests; the platform creates durable tickets, classifies them, routes them to the right queue, and escalates eligible bugs to GitHub. GitHub issue changes flow back to the linked ticket.
 
-This repository has completed **Phase 5: Jev AI triage**. Accepted tickets are classified by a provider-neutral `TicketClassifier` (Jev adapter plus deterministic fixture), persisted as append-only `TicketClassification` history with policy-derived route and GitHub-escalation eligibility, and moved out of `needs_triage`. No GitHub call, dashboard, generative AI, or authentication exists yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
+This repository has completed **Phase 6: support dashboard and human review**. Operators sign in with email/password (Better Auth) to browse projects, filter tickets, inspect reports with AI classifications and history, re-run triage, record review overrides with authorship, and resolve/reopen tickets. No GitHub calls or generative AI exist yet. The architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); implementation decisions and their reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## MVP journey
 
@@ -23,8 +23,9 @@ The MVP excludes billing, subscriptions, public signup, knowledge-base ingestion
 ## Repository layout
 
 ```text
-apps/web/                 Platform app shell and public ticket API
+apps/web/                 Platform app shell, public ticket API, and operator dashboard
 apps/demo/                Controlled consumer app shell (mock or real API mode)
+packages/auth/            Better Auth instance, session/membership helpers, owner bootstrap
 packages/ai/              Provider-neutral triage: classifier interface, Jev adapter, fixture classifier, policy, triage service, CLIs
 packages/db/              Drizzle schema, migrations, seed, scoped repository
 packages/widget/          React support widget, HTTP submission client, bundled styles
@@ -78,11 +79,17 @@ pnpm test:e2e
 
 `POST /api/v1/support/tickets` accepts `{ projectKey, category, message, contact?, submissionId }` as JSON (16 KB body limit) and returns `{ ticketReference: "SUP-<number>", status: "received" }`. The server resolves the project from `projectKey`, checks the browser `Origin` against the project's allowed origins, validates with Zod, applies a per-project hourly rate limit, and creates Conversation, visitor Message, Ticket (`needs_triage` with the visitor category stored only as `categoryHint`), and a `submitted` event in one transaction. Retrying the same `submissionId` with identical content returns the same reference; the same key with different content is a `409` conflict. No AI, GitHub, authentication, or background worker is involved. Request/response/error schemas live in `packages/support-contracts`, shared by the API and the widget's `HttpSupportSubmissionClient`; the widget never imports database, server, AI, or GitHub types. See [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md), and `docs/handoffs/phase-04.md` for the contract, idempotency, origin/CORS, and rate-limit details.
 
-Set `NEXT_PUBLIC_SUPPORT_API_URL` (documented in `.env.example`) when the demo or an external consumer must target a non-default API base URL; same-origin/local defaults apply otherwise. `DATABASE_URL` stays server-only.
+## Operator dashboard (Phase 6)
+
+Sign in at `/login` with the seeded owner account (`SEED_OWNER_EMAIL`, local only), then open `/dashboard` for per-project ticket counts, filterable ticket tables (`?status=&route=&type=&severity=&q=SUP-123&page=`), and ticket detail with the visitor report, current AI classification, append-only history, timeline, and human review decisions. Operators can re-run triage, record route/status/escalation overrides with authorship and reason, resolve/reopen tickets, and release quarantine — all validated and workspace-scoped server-side. AI rows are never rewritten; overrides live in `ticket_overrides` with the deciding owner. Confidence renders as a spread-based model score with an explicit non-calibration note and a below-floor review badge.
+
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required server-only env (see `.env.example`); public self-signup is disabled at the auth route unless `AUTH_ALLOW_SIGNUP=true`. The public ingestion API is unchanged and needs no authentication.
 
 ## AI triage (Phase 5)
 
 `pnpm ai:triage --pending` classifies `needs_triage` tickets (or `--ticket <uuid>` for one) with the mock fixture classifier by default; `--classifier jev` uses live Jev and requires `TYPESAFE_API_KEY`. Each decision persists a `TicketClassification` row with type, severity, policy route, GitHub-escalation recommendation, confidence, and provenance, and moves the ticket to `queued` (bugs to `engineering`, questions to `support`, features to `product`) or `quarantined` (spam). Visitor contact details are never sent to Jev — only the message and category hint. `pnpm ai:evaluate` runs the versioned fixture set (mock must pass 7/7; live only reports observations). Triage never blocks ingestion: the public API is unchanged and accepted tickets survive provider failures in `needs_triage` with a `triage_failed` event. See [AI_ENGINEERING.md](AI_ENGINEERING.md) and `docs/handoffs/phase-05.md`.
+
+Set `NEXT_PUBLIC_SUPPORT_API_URL` (documented in `.env.example`) when the demo or an external consumer must target a non-default API base URL; same-origin/local defaults apply otherwise. `DATABASE_URL` stays server-only.
 
 ## Local PostgreSQL
 
@@ -97,7 +104,7 @@ pnpm test:db
 pnpm db:down
 ```
 
-`pnpm db:down` preserves the volume. `pnpm db:generate` creates a versioned migration after an intentional schema change; review and commit its SQL and snapshot. `pnpm db:check` checks migration history. `pnpm db:studio` starts Drizzle Studio for local inspection. Never use schema push as the deployment path. The seed is repeatable and creates one workspace, two projects, and four sample tickets without AI or GitHub calls.
+`pnpm db:down` preserves the volume. `pnpm db:generate` creates a versioned migration after an intentional schema change; review and commit its SQL and snapshot. `pnpm db:check` checks migration history. `pnpm db:studio` starts Drizzle Studio for local inspection. Never use schema push as the deployment path. The seed is repeatable and creates one workspace, two projects, and eight sample tickets (question, bugs incl. low-confidence, feature, spam, failed triage, reclassified, resolved) without AI or GitHub calls, then bootstraps the local owner account and workspace ownership when `SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD` are set.
 
 `pnpm test` remains database-free; `pnpm test:db` migrates and clears only the separate local `*_test` database. The test runner rejects a nonlocal or non-test URL. GitHub Actions starts PostgreSQL 16 and runs the same database suite after the unit checks.
 
@@ -113,7 +120,7 @@ pnpm db:down
 | 10–12 | Hardening, external package validation, npm publication |
 | 13–15 | Portfolio integration, dogfooding, technical article |
 
-Each phase stops with a handoff in `docs/handoffs/`. Phase 6 begins only after review of the Phase 5 handoff.
+Each phase stops with a handoff in `docs/handoffs/`. Phase 7 begins only after review of the Phase 6 handoff.
 
 ## Documentation
 

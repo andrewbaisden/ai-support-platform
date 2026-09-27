@@ -37,6 +37,15 @@ const examples: Array<{
   status: TicketStatus;
   confidence: number;
   githubIssueRecommended: boolean;
+  skipClassification?: boolean;
+  triageFailed?: boolean;
+  secondClassification?: {
+    id: string;
+    type: TicketType;
+    severity: Severity;
+    route: TicketRoute;
+    confidence: number;
+  };
 }> = [
   {
     id: "30000000-0000-4000-8000-000000000001",
@@ -96,6 +105,75 @@ const examples: Array<{
     route: "ignore",
     status: "quarantined",
     confidence: 0.99,
+    githubIssueRecommended: false,
+  },
+  {
+    id: "30000000-0000-4000-8000-000000000005",
+    projectId: portfolioProjectId,
+    conversationId: "40000000-0000-4000-8000-000000000005",
+    messageId: "50000000-0000-4000-8000-000000000005",
+    classificationId: "60000000-0000-4000-8000-000000000005",
+    eventId: "70000000-0000-4000-8000-000000000005",
+    text: "The page sometimes looks wrong after I resize the window, but I cannot reproduce it reliably.",
+    type: "bug",
+    severity: "low",
+    route: "engineering",
+    status: "queued",
+    confidence: 0.45,
+    githubIssueRecommended: false,
+  },
+  {
+    id: "30000000-0000-4000-8000-000000000006",
+    projectId: saasProjectId,
+    conversationId: "40000000-0000-4000-8000-000000000006",
+    messageId: "50000000-0000-4000-8000-000000000006",
+    classificationId: "60000000-0000-4000-8000-000000000006",
+    eventId: "70000000-0000-4000-8000-000000000006",
+    text: "The contact section is weird.",
+    type: "other",
+    severity: "low",
+    route: "support",
+    status: "needs_triage",
+    confidence: 0,
+    githubIssueRecommended: false,
+    skipClassification: true,
+    triageFailed: true,
+  },
+  {
+    id: "30000000-0000-4000-8000-000000000007",
+    projectId: portfolioProjectId,
+    conversationId: "40000000-0000-4000-8000-000000000007",
+    messageId: "50000000-0000-4000-8000-000000000007",
+    classificationId: "60000000-0000-4000-8000-000000000007",
+    eventId: "70000000-0000-4000-8000-000000000007",
+    text: "The export button downloads an empty file.",
+    type: "bug",
+    severity: "medium",
+    route: "engineering",
+    status: "queued",
+    confidence: 0.72,
+    githubIssueRecommended: false,
+    secondClassification: {
+      id: "60000000-0000-4000-8000-000000000017",
+      type: "question" as TicketType,
+      severity: "low" as Severity,
+      route: "support" as TicketRoute,
+      confidence: 0.93,
+    },
+  },
+  {
+    id: "30000000-0000-4000-8000-000000000008",
+    projectId: portfolioProjectId,
+    conversationId: "40000000-0000-4000-8000-000000000008",
+    messageId: "50000000-0000-4000-8000-000000000008",
+    classificationId: "60000000-0000-4000-8000-000000000008",
+    eventId: "70000000-0000-4000-8000-000000000008",
+    text: "Where can I find the documentation for the widget themes?",
+    type: "question",
+    severity: "low",
+    route: "support",
+    status: "resolved",
+    confidence: 0.95,
     githubIssueRecommended: false,
   },
 ];
@@ -174,34 +252,63 @@ try {
         updatedAt: seedTime,
       })
       .onConflictDoNothing();
-    await db
-      .insert(ticketClassifications)
-      .values({
-        id: example.classificationId,
-        projectId: example.projectId,
-        ticketId: example.id,
-        type: example.type,
-        severity: example.severity,
-        route: example.route,
-        githubIssueRecommended: example.githubIssueRecommended,
-        confidence: example.confidence,
-        source: "fixture",
-        createdAt: seedTime,
-      })
-      .onConflictDoNothing();
-    await db
-      .insert(ticketEvents)
-      .values({
-        id: example.eventId,
-        projectId: example.projectId,
-        ticketId: example.id,
-        type: "seeded",
-        createdAt: seedTime,
-      })
-      .onConflictDoNothing();
+    if (!example.skipClassification) {
+      await db
+        .insert(ticketClassifications)
+        .values({
+          id: example.classificationId,
+          projectId: example.projectId,
+          ticketId: example.id,
+          type: example.type,
+          severity: example.severity,
+          route: example.route,
+          githubIssueRecommended: example.githubIssueRecommended,
+          confidence: example.confidence,
+          source: "fixture",
+          createdAt: seedTime,
+        })
+        .onConflictDoNothing();
+    }
+    if (example.secondClassification) {
+      await db
+        .insert(ticketClassifications)
+        .values({
+          id: example.secondClassification.id,
+          projectId: example.projectId,
+          ticketId: example.id,
+          type: example.secondClassification.type,
+          severity: example.secondClassification.severity,
+          route: example.secondClassification.route,
+          githubIssueRecommended: false,
+          confidence: example.secondClassification.confidence,
+          source: "fixture",
+          createdAt: seedTime,
+        })
+        .onConflictDoNothing();
+    }
+    const eventTypes = example.triageFailed
+      ? ["submitted", "triage_failed"]
+      : example.status === "resolved"
+        ? ["submitted", "classified", "resolved"]
+        : ["submitted", "classified"];
+    for (const [index, eventType] of eventTypes.entries()) {
+      await db
+        .insert(ticketEvents)
+        .values({
+          id:
+            index === 0
+              ? example.eventId
+              : `7000000${index}-0000-4000-8000-${example.id.slice(-12)}`,
+          projectId: example.projectId,
+          ticketId: example.id,
+          type: eventType,
+          createdAt: seedTime,
+        })
+        .onConflictDoNothing();
+    }
   }
   process.stdout.write(
-    "Seeded Andrew Demo Workspace, two projects, and four sample tickets.\n",
+    "Seeded Andrew Demo Workspace, two projects, and eight sample tickets.\n",
   );
 } finally {
   await pool.end();

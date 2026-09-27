@@ -79,6 +79,148 @@ export const workspaces = pgTable("workspaces", {
   updatedAt: updatedAt(),
 });
 
+/**
+ * Better Auth identity tables. Column shapes mirror the provider's canonical
+ * pg model (verified via getAuthTables); IDs are provider-generated text.
+ * Property names stay camelCase so the Drizzle adapter resolves its fields.
+ */
+export const users = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [unique("user_email_unique").on(table.email)],
+);
+
+export const sessions = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    unique("session_token_unique").on(table.token),
+    index("session_user_idx").on(table.userId),
+  ],
+);
+
+export const accounts = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      withTimezone: true,
+    }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("account_user_idx").on(table.userId)],
+);
+
+export const verifications = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const workspaceRoles = ["owner", "member"] as const;
+export type WorkspaceRole = (typeof workspaceRoles)[number];
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    role: text("role").$type<WorkspaceRole>().default("member").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("workspace_members_workspace_user_unique").on(
+      table.workspaceId,
+      table.userId,
+    ),
+    check(
+      "workspace_members_role_check",
+      sql`${table.role} IN ('owner', 'member')`,
+    ),
+  ],
+);
+
+export const ticketOverrides = pgTable(
+  "ticket_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull(),
+    ticketId: uuid("ticket_id").notNull(),
+    decidedBy: text("decided_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    route: text("route").$type<TicketRoute>(),
+    status: text("status").$type<TicketStatus>(),
+    githubIssueRecommended: boolean("github_issue_recommended"),
+    reason: text("reason").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ticketId, table.projectId],
+      foreignColumns: [tickets.id, tickets.projectId],
+      name: "ticket_overrides_ticket_project_fk",
+    }).onDelete("restrict"),
+    check(
+      "ticket_overrides_decision_check",
+      sql`${table.route} IS NOT NULL OR ${table.status} IS NOT NULL OR ${table.githubIssueRecommended} IS NOT NULL`,
+    ),
+    check(
+      "ticket_overrides_route_check",
+      sql`${table.route} IS NULL OR ${table.route} IN ('support', 'product', 'engineering', 'ignore')`,
+    ),
+    check(
+      "ticket_overrides_status_check",
+      sql`${table.status} IN ('needs_triage', 'queued', 'escalation_pending', 'escalated', 'resolved', 'quarantined') OR ${table.status} IS NULL`,
+    ),
+    check(
+      "ticket_overrides_reason_length_check",
+      sql`char_length(${table.reason}) BETWEEN 1 AND 500`,
+    ),
+  ],
+);
+
 export const projects = pgTable(
   "projects",
   {

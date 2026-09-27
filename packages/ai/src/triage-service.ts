@@ -68,8 +68,9 @@ export async function triageTicket(
   repository: TriageRepository,
   classifier: TicketClassifier,
   ticket: TriageTicket,
+  options: { force?: boolean } = {},
 ): Promise<TriageOutcome> {
-  if (ticket.status !== "needs_triage") {
+  if (!options.force && ticket.status !== "needs_triage") {
     const current = await repository.getCurrentClassification({
       workspaceId: ticket.workspaceId,
       projectId: ticket.projectId,
@@ -80,11 +81,13 @@ export async function triageTicket(
       type: current?.type ?? "other",
     };
   }
-  const existing = await repository.getCurrentClassification({
-    workspaceId: ticket.workspaceId,
-    projectId: ticket.projectId,
-    ticketId: ticket.ticketId,
-  });
+  const existing = options.force
+    ? undefined
+    : await repository.getCurrentClassification({
+        workspaceId: ticket.workspaceId,
+        projectId: ticket.projectId,
+        ticketId: ticket.ticketId,
+      });
   if (existing) {
     return { outcome: "already-triaged", type: existing.type };
   }

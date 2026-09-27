@@ -1,0 +1,26 @@
+{
+  "name": "@ai-support-platform/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "auth:bootstrap": "tsx src/cli/bootstrap-owner.ts"
+  },
+  "dependencies": {
+    "@ai-support-platform/db": "workspace:*",
+    "@better-auth/drizzle-adapter": "latest",
+    "better-auth": "latest",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "dotenv": "^18.0.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}

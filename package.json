@@ -27,7 +27,7 @@
     "db:generate": "pnpm --filter @ai-support-platform/db db:generate",
     "db:check": "pnpm --filter @ai-support-platform/db db:check",
     "db:migrate": "pnpm --filter @ai-support-platform/db db:migrate",
-    "db:seed": "pnpm --filter @ai-support-platform/db db:seed",
+    "db:seed": "pnpm --filter @ai-support-platform/db db:seed && pnpm --filter @ai-support-platform/auth auth:bootstrap --workspace 10000000-0000-4000-8000-000000000001",
     "db:studio": "pnpm --filter @ai-support-platform/db db:studio"
   },
   "devDependencies": {

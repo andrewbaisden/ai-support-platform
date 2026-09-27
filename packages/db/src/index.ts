@@ -12,10 +12,26 @@ export {
   projectInputSchema,
   type SubmissionInput,
   submissionInputSchema,
+  type TicketOverrideInput,
+  ticketOverrideInputSchema,
+  type WorkspaceMemberInput,
+  workspaceMemberInputSchema,
 } from "./inputs";
 export {
   createSupportRepository,
   SubmissionConflictError,
   ticketReference,
 } from "./repository";
-export type { Severity, TicketRoute, TicketStatus, TicketType } from "./schema";
+export type {
+  Severity,
+  TicketRoute,
+  TicketStatus,
+  TicketType,
+  WorkspaceRole,
+} from "./schema";
+export {
+  accounts,
+  sessions,
+  users,
+  verifications,
+} from "./schema";

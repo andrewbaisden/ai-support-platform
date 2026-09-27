@@ -22,6 +22,13 @@
       "when": 1790466913940,
       "tag": "0002_broad_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790471190735,
+      "tag": "0003_tough_apocalypse",
+      "breakpoints": true
     }
   ]
 }

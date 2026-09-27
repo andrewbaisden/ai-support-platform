@@ -54,9 +54,44 @@ export const classificationInputSchema = z.object({
   reason: z.string().trim().max(1000).nullable().default(null),
 });
 
+export const workspaceMemberInputSchema = z.object({
+  workspaceId: z.uuid(),
+  userId: z.string().trim().min(1).max(128),
+  role: z.enum(["owner", "member"]).default("member"),
+});
+
+export const ticketOverrideInputSchema = z
+  .object({
+    projectId: z.uuid(),
+    ticketId: z.uuid(),
+    decidedBy: z.string().trim().min(1).max(128),
+    route: z.enum(ticketRoutes).optional(),
+    status: z
+      .enum([
+        "needs_triage",
+        "queued",
+        "escalation_pending",
+        "escalated",
+        "resolved",
+        "quarantined",
+      ])
+      .optional(),
+    githubIssueRecommended: z.boolean().optional(),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .refine(
+    (value) =>
+      value.route !== undefined ||
+      value.status !== undefined ||
+      value.githubIssueRecommended !== undefined,
+    { message: "Override must change route, status, or escalation" },
+  );
+
 export type ProjectInput = z.input<typeof projectInputSchema>;
 export type SubmissionInput = z.input<typeof submissionInputSchema>;
 export type ClassificationInput = z.input<typeof classificationInputSchema>;
+export type WorkspaceMemberInput = z.input<typeof workspaceMemberInputSchema>;
+export type TicketOverrideInput = z.input<typeof ticketOverrideInputSchema>;
 
 export function generatePublicProjectKey() {
   return `pk_${randomBytes(24).toString("base64url")}`;

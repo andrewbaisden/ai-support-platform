@@ -40,8 +40,9 @@ Automatic GitHub issue creation requires a validated `bug` classification, norma
 ## Failure and prompt security
 
 The ticket is stored before AI work. A timeout, 4xx/5xx response, malformed answer, or exhausted retry changes work status and leaves the ticket in `needs_triage`; it does not delete the report or mark it spam. A generative failure uses the deterministic issue template. An invalid draft is not published. The dashboard shows the failure state and offers owner re-triage.
-
 Visitor text is untrusted data, even if it says to ignore instructions, reveal a key, target another repository, or invent a classification. The adapter sends only task-relevant fields. No model receives GitHub credentials or tools that can mutate GitHub. Server policy selects the repository and performs the issue call after validation. Logs should capture IDs, outcome, version, latency, and safe error category, not raw visitor text or provider request bodies.
+
+Human review decisions are provenance-separated from model output: the dashboard stores overrides (author, route/status/escalation, reason) in `ticket_overrides` and never rewrites classification rows, so later evaluation can distinguish model errors from owner corrections. Confidence renders as a spread-based score with an explicit non-calibration note and a below-floor review badge.
 
 ## Evaluation
 

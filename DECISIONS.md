@@ -126,6 +126,14 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** `packages/ai` core never imports the database (the service takes a narrow repository port; only the CLI wires the real repository). Low-confidence results still route with an audit reason; the owner review surface arrives with the Phase 6 dashboard. Reclassification appends history; concurrent runs converge via the existing guarded transition.
 
+## ADR-018 — Dashboard auth and human review
+
+**Decision:** Implement ADR-002 with Better Auth email/password (minimum 12 characters, no email verification until delivery exists, no OAuth): canonical `user`/`session`/`account`/`verification` tables plus `workspace_members`, session cookies, and a seeded owner via `auth:bootstrap`. Gate public sign-up endpoints at the auth route (404 unless `AUTH_ALLOW_SIGNUP=true`). Scope every dashboard query and mutation by workspace membership with 404-equivalence for unknown/foreign IDs. Store human decisions in `ticket_overrides` (author, route/status/escalation, reason) with workflow-state application and audit events; never rewrite AI rows. Mutate through JSON route handlers (not server actions) with Origin-vs-host CSRF checks and Zod bodies. No `needs_review` status: review need is derived from confidence floor and triage-failure state.
+
+**Why:** Email/password needs no external provider setup for local development while staying a maintained, non-custom credential path. Membership plus scoped queries gives tenant isolation without inventing authz. A separate override table preserves AI-vs-human provenance that workflow columns alone cannot. Route handlers keep mutation transport explicit and directly testable.
+
+**Consequence:** Production must set `BETTER_AUTH_SECRET`, enable email verification with delivery, rotate the dev placeholder, and review the signup gate before any hosted use. Escalation-state transitions stay reserved for Phase 7.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.

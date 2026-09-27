@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./client";
 import {
@@ -8,6 +8,10 @@ import {
   projectInputSchema,
   type SubmissionInput,
   submissionInputSchema,
+  type TicketOverrideInput,
+  ticketOverrideInputSchema,
+  type WorkspaceMemberInput,
+  workspaceMemberInputSchema,
 } from "./inputs";
 import {
   conversations,
@@ -15,11 +19,22 @@ import {
   githubIssues,
   messages,
   projects,
+  type Severity,
+  severities,
   submissionRateLimits,
+  type TicketRoute,
+  type TicketStatus,
+  type TicketType,
   ticketClassifications,
   ticketEvents,
+  ticketOverrides,
+  ticketRoutes,
+  ticketStatuses,
   tickets,
+  ticketTypes,
+  users,
   webhookEvents,
+  workspaceMembers,
   workspaces,
 } from "./schema";
 
@@ -330,6 +345,160 @@ export function createSupportRepository(db: Database) {
       return row?.classification;
     },
 
+    async listTicketsForDashboard(
+      workspaceId: string,
+      projectId: string,
+      filters: {
+        statuses?: TicketStatus[];
+        routes?: TicketRoute[];
+        types?: TicketType[];
+        severities?: Severity[];
+        ticketNumber?: number;
+      },
+      pagination: { limit: number; offset: number },
+    ) {
+      const validFilters = z
+        .object({
+          statuses: z.array(z.enum(ticketStatuses)).max(6).optional(),
+          routes: z.array(z.enum(ticketRoutes)).max(4).optional(),
+          types: z.array(z.enum(ticketTypes)).max(8).optional(),
+          severities: z.array(z.enum(severities)).max(4).optional(),
+          ticketNumber: z.number().int().positive().optional(),
+        })
+        .parse(filters);
+      const validPage = z
+        .object({
+          limit: z.number().int().min(1).max(100),
+          offset: z.number().int().min(0),
+        })
+        .parse(pagination);
+      const ticketConditions = [
+        eq(projects.workspaceId, workspaceId),
+        eq(projects.id, projectId),
+      ];
+      if (validFilters.statuses?.length) {
+        ticketConditions.push(inArray(tickets.status, validFilters.statuses));
+      }
+      if (validFilters.routes?.length) {
+        ticketConditions.push(inArray(tickets.route, validFilters.routes));
+      }
+      if (validFilters.ticketNumber !== undefined) {
+        ticketConditions.push(
+          eq(tickets.ticketNumber, validFilters.ticketNumber),
+        );
+      }
+      if (validFilters.types?.length || validFilters.severities?.length) {
+        const matching = await db
+          .selectDistinctOn([ticketClassifications.ticketId], {
+            ticketId: ticketClassifications.ticketId,
+          })
+          .from(ticketClassifications)
+          .innerJoin(tickets, eq(ticketClassifications.ticketId, tickets.id))
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(
+            and(
+              eq(projects.workspaceId, workspaceId),
+              eq(projects.id, projectId),
+              ...(validFilters.types?.length
+                ? [inArray(ticketClassifications.type, validFilters.types)]
+                : []),
+              ...(validFilters.severities?.length
+                ? [
+                    inArray(
+                      ticketClassifications.severity,
+                      validFilters.severities,
+                    ),
+                  ]
+                : []),
+            ),
+          )
+          .orderBy(
+            ticketClassifications.ticketId,
+            desc(ticketClassifications.classificationNumber),
+          );
+        // Latest attempt per ticket decides; a ticket matches only when its
+        // current classification satisfies every requested AI filter.
+        const currentMatches = await db
+          .selectDistinctOn([ticketClassifications.ticketId], {
+            ticketId: ticketClassifications.ticketId,
+            type: ticketClassifications.type,
+            severity: ticketClassifications.severity,
+          })
+          .from(ticketClassifications)
+          .where(
+            inArray(
+              ticketClassifications.ticketId,
+              matching.map((row) => row.ticketId),
+            ),
+          )
+          .orderBy(
+            ticketClassifications.ticketId,
+            desc(ticketClassifications.classificationNumber),
+          );
+        const matchingIds = currentMatches
+          .filter(
+            (row) =>
+              (!validFilters.types?.length ||
+                validFilters.types.includes(row.type)) &&
+              (!validFilters.severities?.length ||
+                validFilters.severities.includes(row.severity)),
+          )
+          .map((row) => row.ticketId);
+        ticketConditions.push(inArray(tickets.id, matchingIds));
+      }
+      const where = and(...ticketConditions);
+      const [countRows, ticketRows] = await Promise.all([
+        db
+          .select({ value: count() })
+          .from(tickets)
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(where),
+        db
+          .select()
+          .from(tickets)
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(where)
+          .orderBy(desc(tickets.ticketNumber))
+          .limit(validPage.limit)
+          .offset(validPage.offset),
+      ]);
+      const total = countRows[0]?.value ?? 0;
+      const pageTickets = ticketRows.map((row) => row.tickets);
+      const pageClassifications =
+        pageTickets.length === 0
+          ? []
+          : await db
+              .selectDistinctOn([ticketClassifications.ticketId], {
+                ticketId: ticketClassifications.ticketId,
+                type: ticketClassifications.type,
+                severity: ticketClassifications.severity,
+                confidence: ticketClassifications.confidence,
+                githubIssueRecommended:
+                  ticketClassifications.githubIssueRecommended,
+              })
+              .from(ticketClassifications)
+              .where(
+                inArray(
+                  ticketClassifications.ticketId,
+                  pageTickets.map((ticket) => ticket.id),
+                ),
+              )
+              .orderBy(
+                ticketClassifications.ticketId,
+                desc(ticketClassifications.classificationNumber),
+              );
+      const byTicket = new Map(
+        pageClassifications.map((row) => [row.ticketId, row]),
+      );
+      return {
+        total,
+        rows: pageTickets.map((ticket) => ({
+          ticket,
+          classification: byTicket.get(ticket.id),
+        })),
+      };
+    },
+
     async listTicketsForProject(workspaceId: string, projectId: string) {
       const rows = await db
         .select({ ticket: tickets })
@@ -343,6 +512,239 @@ export function createSupportRepository(db: Database) {
         )
         .orderBy(desc(tickets.ticketNumber));
       return rows.map((row) => row.ticket);
+    },
+
+    async createWorkspaceMember(input: WorkspaceMemberInput) {
+      const valid = workspaceMemberInputSchema.parse(input);
+      const [member] = await db
+        .insert(workspaceMembers)
+        .values(valid)
+        .onConflictDoNothing({
+          target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+        })
+        .returning();
+      if (!member) throw new Error("Membership already exists");
+      return member;
+    },
+
+    async listWorkspacesForUser(userId: string) {
+      const rows = await db
+        .select({ workspace: workspaces, role: workspaceMembers.role })
+        .from(workspaceMembers)
+        .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+        .where(eq(workspaceMembers.userId, userId))
+        .orderBy(workspaces.name);
+      return rows;
+    },
+
+    async getProjectWorkspace(projectId: string) {
+      const [row] = await db
+        .select({ workspaceId: projects.workspaceId })
+        .from(projects)
+        .where(eq(projects.id, z.uuid().parse(projectId)))
+        .limit(1);
+      return row;
+    },
+
+    async listProjectsForWorkspace(workspaceId: string) {
+      return db
+        .select()
+        .from(projects)
+        .where(eq(projects.workspaceId, workspaceId))
+        .orderBy(projects.name);
+    },
+
+    async getTicketStatusCounts(workspaceId: string, projectId: string) {
+      return db
+        .select({ status: tickets.status, count: count() })
+        .from(tickets)
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+          ),
+        )
+        .groupBy(tickets.status);
+    },
+
+    async listClassificationsForTicket(
+      workspaceId: string,
+      projectId: string,
+      ticketId: string,
+    ) {
+      const rows = await db
+        .select({ classification: ticketClassifications })
+        .from(ticketClassifications)
+        .innerJoin(tickets, eq(ticketClassifications.ticketId, tickets.id))
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+            eq(tickets.id, ticketId),
+          ),
+        )
+        .orderBy(desc(ticketClassifications.classificationNumber));
+      return rows.map((row) => row.classification);
+    },
+
+    async getConversationContact(projectId: string, conversationId: string) {
+      const [row] = await db
+        .select({
+          visitorName: conversations.visitorName,
+          visitorEmail: conversations.visitorEmail,
+        })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.projectId, projectId),
+          ),
+        )
+        .limit(1);
+      return row;
+    },
+
+    async getLatestOverride(
+      workspaceId: string,
+      projectId: string,
+      ticketId: string,
+    ) {
+      const [row] = await db
+        .select({ override: ticketOverrides, authorEmail: users.email })
+        .from(ticketOverrides)
+        .innerJoin(tickets, eq(ticketOverrides.ticketId, tickets.id))
+        .innerJoin(projects, eq(tickets.projectId, projects.id))
+        .innerJoin(users, eq(ticketOverrides.decidedBy, users.id))
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+            eq(tickets.id, ticketId),
+          ),
+        )
+        .orderBy(desc(ticketOverrides.createdAt))
+        .limit(1);
+      return row;
+    },
+
+    async recordTicketOverride(
+      workspaceId: string,
+      input: TicketOverrideInput,
+      eventType: string,
+    ) {
+      const valid = ticketOverrideInputSchema.parse(input);
+      const validEvent = z.string().trim().min(1).max(80).parse(eventType);
+      return db.transaction(async (tx) => {
+        const [scope] = await tx
+          .select({ id: tickets.id })
+          .from(tickets)
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(
+            and(
+              eq(projects.workspaceId, workspaceId),
+              eq(projects.id, valid.projectId),
+              eq(tickets.id, valid.ticketId),
+            ),
+          )
+          .for("update")
+          .limit(1);
+        if (!scope) throw new Error("Ticket not found in workspace/project");
+        const [override] = await tx
+          .insert(ticketOverrides)
+          .values({
+            projectId: valid.projectId,
+            ticketId: valid.ticketId,
+            decidedBy: valid.decidedBy,
+            route: valid.route,
+            status: valid.status,
+            githubIssueRecommended: valid.githubIssueRecommended,
+            reason: valid.reason,
+          })
+          .returning();
+        if (!override) throw new Error("Override insert did not return a row");
+        const patch: Partial<{ route: TicketRoute; status: TicketStatus }> = {};
+        if (valid.route !== undefined) patch.route = valid.route;
+        if (valid.status !== undefined) patch.status = valid.status;
+        if (Object.keys(patch).length > 0) {
+          await tx
+            .update(tickets)
+            .set({ ...patch, updatedAt: new Date() })
+            .where(eq(tickets.id, valid.ticketId));
+        }
+        await tx.insert(ticketEvents).values({
+          projectId: valid.projectId,
+          ticketId: valid.ticketId,
+          type: validEvent,
+          summary: `Owner override: ${valid.reason}`,
+        });
+        return override;
+      });
+    },
+
+    async updateTicketStatus(
+      workspaceId: string,
+      input: {
+        projectId: string;
+        ticketId: string;
+        status: TicketStatus;
+        eventType: string;
+      },
+    ) {
+      const valid = z
+        .object({
+          projectId: z.uuid(),
+          ticketId: z.uuid(),
+          status: z.enum([
+            "needs_triage",
+            "queued",
+            "escalation_pending",
+            "escalated",
+            "resolved",
+            "quarantined",
+          ]),
+          eventType: z.string().trim().min(1).max(80),
+        })
+        .parse(input);
+      return db.transaction(async (tx) => {
+        const [scope] = await tx
+          .select({ id: tickets.id })
+          .from(tickets)
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .where(
+            and(
+              eq(projects.workspaceId, workspaceId),
+              eq(projects.id, valid.projectId),
+              eq(tickets.id, valid.ticketId),
+            ),
+          )
+          .for("update")
+          .limit(1);
+        if (!scope) throw new Error("Ticket not found in workspace/project");
+        const [ticket] = await tx
+          .update(tickets)
+          .set({ status: valid.status, updatedAt: new Date() })
+          .where(eq(tickets.id, valid.ticketId))
+          .returning();
+        if (!ticket) throw new Error("Ticket update did not return a row");
+        await tx.insert(ticketEvents).values({
+          projectId: valid.projectId,
+          ticketId: valid.ticketId,
+          type: valid.eventType,
+        });
+        return ticket;
+      });
+    },
+
+    async findUserByEmail(email: string) {
+      const valid = z.email().max(320).parse(email);
+      const [row] = await db
+        .select({ id: users.id, email: users.email, name: users.name })
+        .from(users)
+        .where(eq(users.email, valid))
+        .limit(1);
+      return row;
     },
 
     async listTicketEvents(projectId: string, ticketId: string) {
