@@ -9,6 +9,8 @@ import {
 } from "@ai-support-platform/db";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
+import { emailSenderFromEnv } from "./email";
+import { authEmailOptions } from "./email-options";
 import { AuthMisconfiguredError } from "./errors";
 
 /**
@@ -27,6 +29,7 @@ function createAuth() {
     );
   }
   const { db } = getSharedDatabase(requireDatabaseUrl("DATABASE_URL"));
+  const email = authEmailOptions(emailSenderFromEnv(process.env));
   return betterAuth({
     baseURL: process.env.BETTER_AUTH_URL,
     secret,
@@ -39,10 +42,13 @@ function createAuth() {
         verification: verifications,
       },
     }),
+    ...(email.emailVerification
+      ? { emailVerification: email.emailVerification }
+      : {}),
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
       minPasswordLength: 12,
+      ...email.emailAndPassword,
     },
   });
 }

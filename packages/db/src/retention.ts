@@ -1,6 +1,7 @@
 import { createDatabase } from "./client";
 import { loadRootEnv, requireDatabaseUrl } from "./env";
 import { createSupportRepository } from "./repository";
+import { RETENTION_DEFAULTS } from "./retention-policy";
 
 /**
  * Data retention. Dry run by default; `--apply` erases.
@@ -37,8 +38,12 @@ function days(flag: string, fallback: number, minimum: number): number {
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) usage();
 const apply = process.argv.includes("--apply");
-const contactDays = days("--contact-days", 180, 1);
-const webhookDays = days("--webhook-days", 90, 7);
+const contactDays = days("--contact-days", RETENTION_DEFAULTS.contactDays, 1);
+const webhookDays = days(
+  "--webhook-days",
+  RETENTION_DEFAULTS.webhookDays,
+  RETENTION_DEFAULTS.minimumWebhookDays,
+);
 
 loadRootEnv();
 const { db, pool } = createDatabase(requireDatabaseUrl("DATABASE_URL"));

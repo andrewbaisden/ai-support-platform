@@ -34,6 +34,7 @@
     "db:migrate": "pnpm --filter @ai-support-platform/db db:migrate",
     "db:seed": "pnpm --filter @ai-support-platform/db db:seed && pnpm --filter @ai-support-platform/auth auth:bootstrap --workspace 10000000-0000-4000-8000-000000000001",
     "db:retention": "pnpm --filter @ai-support-platform/db db:retention",
+    "setup:production": "pnpm --filter @ai-support-platform/auth auth:setup-production",
     "db:studio": "pnpm --filter @ai-support-platform/db db:studio"
   },
   "devDependencies": {

@@ -36,13 +36,15 @@ function usage(): never {
     `Usage: LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository <owner/name>
     [--project <uuid>] [--platform http://127.0.0.1:3000]
     [--classifier mock|jev] [--webhook-timeout 90] [--finish closed|open]
-    [--operator-email <owner email>]
+    [--operator-email <owner email>] [--allow-remote-database]
 
 Creates a REAL issue in the project's connected repository. Requires:
 - LIVE_GITHUB_TEST=1
 - --repository equal to the connected repository, whose name contains
   "disposable", "live-test", or "sandbox"
-- GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY, a local DATABASE_URL
+- GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY, and a local DATABASE_URL (or, to
+  validate a deployment, its database with --allow-remote-database and an
+  https:// --platform)
 - with the mock classifier, an operator account (--operator-email or
   SEED_OWNER_EMAIL) to record the owner recommendation fixture triage needs
 - the platform running at --platform with GITHUB_WEBHOOK_SECRET, reachable
@@ -87,11 +89,21 @@ if (!appId || !privateKey) {
   fail("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required.");
 }
 const databaseUrl = new URL(requireDatabaseUrl("DATABASE_URL"));
-if (!["127.0.0.1", "localhost"].includes(databaseUrl.hostname)) {
-  fail("DATABASE_URL must be local for the live journey.");
+const platform = new URL(argValue("--platform") ?? "http://127.0.0.1:3000");
+const remoteDatabase = !["127.0.0.1", "localhost"].includes(
+  databaseUrl.hostname,
+);
+// Validating a deployment writes one synthetic ticket to its database; that
+// must be deliberate and must target the deployed HTTPS platform.
+if (remoteDatabase && !process.argv.includes("--allow-remote-database")) {
+  fail(
+    "DATABASE_URL is not local; pass --allow-remote-database to validate a deployment.",
+  );
+}
+if (remoteDatabase && platform.protocol !== "https:") {
+  fail("A remote database requires an https:// --platform URL.");
 }
 const projectId = argValue("--project") ?? DEFAULT_PROJECT;
-const platform = new URL(argValue("--platform") ?? "http://127.0.0.1:3000");
 const webhookTimeoutMs = Number(argValue("--webhook-timeout") ?? "90") * 1000;
 const classifierKind = argValue("--classifier") ?? "mock";
 const finish = argValue("--finish") ?? "closed";

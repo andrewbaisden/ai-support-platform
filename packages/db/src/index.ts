@@ -28,6 +28,10 @@ export {
   SubmissionConflictError,
   ticketReference,
 } from "./repository";
+export {
+  RETENTION_DEFAULTS,
+  retentionCutoffs,
+} from "./retention-policy";
 export type {
   Severity,
   TicketRoute,

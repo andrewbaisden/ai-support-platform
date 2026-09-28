@@ -7,6 +7,7 @@ const safe = {
   BETTER_AUTH_SECRET: strongSecret,
   BETTER_AUTH_URL: "https://support.example.com",
   GITHUB_WEBHOOK_SECRET: "e".repeat(64),
+  CRON_SECRET: "c9Xk2LmQ7vB4nR8tW1yZ5aD3fG6hJ0pS",
 };
 
 describe("production configuration guard", () => {
@@ -43,9 +44,50 @@ describe("production configuration guard", () => {
       "GITHUB_WEBHOOK_SECRET must be at least 32 characters",
       "GITHUB_ESCALATION_MOCK must not be set in production",
       "AUTH_ALLOW_SIGNUP requires email verification, which is not configured",
+      "CRON_SECRET must be at least 32 characters",
     ]);
     expect(JSON.stringify(problems)).not.toContain("local-dev-only");
     expect(JSON.stringify(problems)).not.toContain("short");
+  });
+
+  it("requires a strong cron secret so scheduled retention cannot silently stop", () => {
+    const { CRON_SECRET: _cron, ...withoutCron } = safe;
+    expect(productionConfigProblems(withoutCron)).toEqual([
+      "CRON_SECRET must be at least 32 characters",
+    ]);
+    expect(productionConfigProblems({ ...safe, CRON_SECRET: "short" })).toEqual(
+      ["CRON_SECRET must be at least 32 characters"],
+    );
+  });
+
+  it("requires complete email settings and allows signup only with them", () => {
+    expect(
+      productionConfigProblems({
+        ...safe,
+        RESEND_API_KEY: "re_live_key_value",
+      }),
+    ).toEqual(["RESEND_API_KEY and EMAIL_FROM must be set together"]);
+    expect(
+      productionConfigProblems({
+        ...safe,
+        EMAIL_FROM: "IssueRelay <no-reply@mail.example.test>",
+      }),
+    ).toEqual(["RESEND_API_KEY and EMAIL_FROM must be set together"]);
+    expect(
+      productionConfigProblems({
+        ...safe,
+        RESEND_API_KEY: "re_live_key_value",
+        EMAIL_FROM: "not an address",
+      }),
+    ).toEqual(["EMAIL_FROM must contain a sender email address"]);
+    expect(
+      productionConfigProblems({
+        ...safe,
+        RESEND_API_KEY: "re_live_key_value",
+        EMAIL_FROM: "IssueRelay <no-reply@mail.example.test>",
+        AUTH_ALLOW_SIGNUP: "true",
+      }),
+    ).toEqual([]);
   });
 
   it("rejects missing, short, and low-variety auth secrets", () => {

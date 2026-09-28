@@ -728,6 +728,20 @@ export function createSupportRepository(db: Database) {
       return rows;
     },
 
+    /**
+     * Mark an operator-created account as verified. Only controlled setup
+     * flows call this; self-service accounts verify through the email link.
+     */
+    async markUserEmailVerified(userId: string) {
+      const valid = z.string().trim().min(1).max(128).parse(userId);
+      const [row] = await db
+        .update(users)
+        .set({ emailVerified: true, updatedAt: new Date() })
+        .where(eq(users.id, valid))
+        .returning({ id: users.id });
+      if (!row) throw new Error("User not found");
+    },
+
     async getProjectWorkspace(projectId: string) {
       const [row] = await db
         .select({ workspaceId: projects.workspaceId })

@@ -20,3 +20,19 @@ test("platform pages refuse framing and MIME sniffing", async ({ request }) => {
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
 });
+
+test("password reset stays unavailable until email is configured", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Forgot your password?" }),
+  ).toHaveCount(0);
+  await page.goto("/forgot-password");
+  await expect(page.getByRole("status")).toContainText(
+    "Password reset by email is not configured",
+  );
+  await page.goto("/reset-password");
+  await expect(page.getByRole("alert")).toContainText("invalid or has expired");
+});

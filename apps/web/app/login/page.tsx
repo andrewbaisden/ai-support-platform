@@ -2,6 +2,7 @@ import { getAuth } from "@ai-support-platform/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { safeCallbackUrl } from "../../lib/callback-url";
+import { passwordResetAvailable } from "../../lib/email-config";
 import LoginForm from "./login-form";
 
 interface PageProps {
@@ -37,6 +38,13 @@ export default async function LoginPage({ searchParams }: PageProps) {
       <div className="mt-6 rounded border border-slate-200 bg-white p-6">
         <LoginForm callbackUrl={callbackUrl} />
       </div>
+      {passwordResetAvailable() && (
+        <p className="mt-4 text-sm">
+          <a className="underline" href="/forgot-password">
+            Forgot your password?
+          </a>
+        </p>
+      )}
     </main>
   );
 }

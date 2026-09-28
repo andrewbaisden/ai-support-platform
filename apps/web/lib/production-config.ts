@@ -9,8 +9,9 @@ type Env = Record<string, string | undefined>;
 
 /**
  * Settings that must not reach a production server: example or weak
- * secrets, plain-HTTP auth URLs, test hooks, and self-signup without email
- * verification. Reports setting names only, never their values.
+ * secrets, plain-HTTP auth URLs, test hooks, incomplete email settings,
+ * self-signup without email verification, and a missing cron secret.
+ * Reports setting names only, never their values.
  */
 export function productionConfigProblems(env: Env): string[] {
   if (env.NODE_ENV !== "production") return [];
@@ -46,9 +47,26 @@ export function productionConfigProblems(env: Env): string[] {
   if (env.GITHUB_ESCALATION_MOCK) {
     problems.push("GITHUB_ESCALATION_MOCK must not be set in production");
   }
-  if (env.AUTH_ALLOW_SIGNUP === "true") {
+  const resendKey = Boolean(env.RESEND_API_KEY?.trim());
+  const emailFrom = env.EMAIL_FROM?.trim();
+  if (resendKey !== Boolean(emailFrom)) {
+    problems.push("RESEND_API_KEY and EMAIL_FROM must be set together");
+  } else if (
+    emailFrom &&
+    !/<?[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>?$/.test(emailFrom)
+  ) {
+    problems.push("EMAIL_FROM must contain a sender email address");
+  }
+  const emailConfigured = resendKey && Boolean(emailFrom);
+  if (env.AUTH_ALLOW_SIGNUP === "true" && !emailConfigured) {
     problems.push(
       "AUTH_ALLOW_SIGNUP requires email verification, which is not configured",
+    );
+  }
+  // Vercel Cron authenticates to the retention route with this secret.
+  if ((env.CRON_SECRET?.length ?? 0) < MIN_SECRET_LENGTH) {
+    problems.push(
+      `CRON_SECRET must be at least ${MIN_SECRET_LENGTH} characters`,
     );
   }
   return problems;

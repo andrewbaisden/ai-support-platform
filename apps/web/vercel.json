@@ -1,0 +1,5 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && pnpm --filter @ai-support-platform/support-contracts build && pnpm --filter @ai-support-platform/web build",
+  "crons": [{ "path": "/api/cron/retention", "schedule": "0 3 * * *" }]
+}
