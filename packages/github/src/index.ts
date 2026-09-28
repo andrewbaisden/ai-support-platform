@@ -34,6 +34,7 @@ export {
   type PrivacyFinding,
   type PrivacyScreen,
   redactEmails,
+  type SubmittedContact,
   screenReport,
 } from "./privacy";
 export type {

@@ -11,6 +11,7 @@ function ticket(overrides: Partial<PreviewTicket> = {}): PreviewTicket {
     reportedAt: new Date("2026-01-02T03:04:05.000Z"),
     message: "The export page is blank and shows an error on submit.",
     categoryHint: "bug",
+    contact: null,
     classification: {
       type: "bug",
       severity: "medium",
@@ -78,6 +79,19 @@ describe("previewEscalation", () => {
         integration,
       }),
     ).toMatchObject({ state: "blocked", code: "GITHUB_PRIVACY_BLOCKED" });
+    expect(
+      previewEscalation({
+        ticket: ticket({
+          message: "Ada Tester here: the export page is blank on submit.",
+          contact: { name: "Ada Tester", email: "ada@example.test" },
+        }),
+        integration,
+      }),
+    ).toEqual({
+      state: "blocked",
+      code: "GITHUB_PRIVACY_BLOCKED",
+      reasons: ["detected contact-detail"],
+    });
     expect(
       previewEscalation({
         ticket: ticket({

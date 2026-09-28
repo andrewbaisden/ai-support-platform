@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { markerForTicket } from "./draft";
+import { GithubError } from "./errors";
 import {
   ESCALATION_EVENTS,
   type EscalationRepository,
@@ -49,6 +50,7 @@ function ticket(overrides: Partial<EscalationTicket> = {}): EscalationTicket {
     reportedAt: new Date("2026-01-02T03:04:05.000Z"),
     message: MESSAGE,
     categoryHint: "bug",
+    contact: null,
     classification: {
       type: "bug",
       severity: "medium",
@@ -166,6 +168,29 @@ describe("escalateTicketToGitHub", () => {
     expect(low.outcome).toBe("blocked");
   });
 
+  it("holds back a report that repeats the visitor's submitted name", async () => {
+    const { repository } = createFakeRepository();
+    const factory = createMockTrackerFactory();
+    const outcome = await escalateTicketToGitHub({
+      repository,
+      trackers: factory,
+      ticket: ticket({
+        message: "Grace Example reporting: the export page is blank.",
+        contact: { name: "Grace Example", email: "grace@example.test" },
+      }),
+    });
+    expect(outcome).toEqual({
+      outcome: "blocked",
+      code: "GITHUB_PRIVACY_BLOCKED",
+      reasons: ["detected contact-detail"],
+    });
+    expect(factory.created).toHaveLength(0);
+    expect(repository.reserveIssueLink).not.toHaveBeenCalled();
+    expect(
+      JSON.stringify(vi.mocked(repository.recordEvent).mock.calls),
+    ).not.toContain("Grace");
+  });
+
   it("marks timeouts unknown without blind retry", async () => {
     const { repository, events } = createFakeRepository();
     const outcome = await escalateTicketToGitHub({
@@ -191,6 +216,113 @@ describe("escalateTicketToGitHub", () => {
     if (outcome.outcome === "reconciled") {
       expect(outcome.issue.number).toBe(7);
     }
+  });
+
+  it.each([
+    ["auth-failure", "failed", "GITHUB_AUTH_FAILED", "retry_required"],
+    [
+      "permission-denied",
+      "failed",
+      "GITHUB_PERMISSION_DENIED",
+      "retry_required",
+    ],
+    [
+      "repository-missing",
+      "failed",
+      "GITHUB_REPOSITORY_NOT_FOUND",
+      "retry_required",
+    ],
+    ["rate-limited", "failed", "GITHUB_RATE_LIMITED", "retry_required"],
+    ["timeout", "unknown", "GITHUB_CREATION_UNKNOWN", "needs_reconciliation"],
+    [
+      "unavailable",
+      "unknown",
+      "GITHUB_CREATION_UNKNOWN",
+      "needs_reconciliation",
+    ],
+  ] as const)(
+    "maps a %s create failure to a safe %s outcome and %s-style recovery state",
+    async (kind, outcome, code, status) => {
+      const { repository, events } = createFakeRepository();
+      const factory = createMockTrackerFactory([{ kind }]);
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const result = await escalateTicketToGitHub({
+          repository,
+          trackers: factory,
+          ticket: ticket(),
+        });
+        expect(result).toEqual({ outcome, code });
+        expect(factory.created).toHaveLength(0);
+        expect(repository.confirmIssueLink).not.toHaveBeenCalled();
+        expect(repository.markIssueStatus).toHaveBeenCalledWith(
+          expect.objectContaining({ status }),
+        );
+        expect(events).toContain(
+          outcome === "failed"
+            ? ESCALATION_EVENTS.failed
+            : ESCALATION_EVENTS.unknown,
+        );
+        // Summaries carry only safe codes: no visitor text or mock detail.
+        const recorded = JSON.stringify(
+          vi.mocked(repository.recordEvent).mock.calls,
+        );
+        expect(recorded).not.toContain(MESSAGE);
+        expect(recorded).not.toMatch(/Mock /);
+        expect(log).not.toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+        error.mockRestore();
+      }
+    },
+  );
+
+  it("never creates while resuming an ambiguous attempt that finds no issue", async () => {
+    const { repository, events } = createFakeRepository({
+      claimIssueCreation: vi.fn(async () => ({
+        claimed: true as const,
+        previousStatus: "needs_reconciliation",
+        marker: markerForTicket("SUP-123", "ticket-1"),
+      })),
+    });
+    const factory = createMockTrackerFactory([{ kind: "success" }]);
+    const outcome = await escalateTicketToGitHub({
+      repository,
+      trackers: factory,
+      ticket: ticket(),
+    });
+    expect(outcome).toEqual({
+      outcome: "unknown",
+      code: "GITHUB_CREATION_UNKNOWN",
+    });
+    expect(factory.created).toHaveLength(0);
+    expect(repository.markIssueStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "needs_reconciliation" }),
+    );
+    expect(events).not.toContain(ESCALATION_EVENTS.created);
+  });
+
+  it("fails safely when the GitHub App client or repository check fails", async () => {
+    const { repository, events } = createFakeRepository();
+    const outcome = await escalateTicketToGitHub({
+      repository,
+      trackers: {
+        forInstallation: async () => {
+          throw new GithubError("GITHUB_AUTH_FAILED", "bad key material");
+        },
+      },
+      ticket: ticket(),
+    });
+    expect(outcome).toEqual({ outcome: "failed", code: "GITHUB_AUTH_FAILED" });
+    expect(repository.markIssueStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "retry_required" }),
+    );
+    expect(events).toContain(ESCALATION_EVENTS.failed);
+    expect(
+      JSON.stringify(vi.mocked(repository.recordEvent).mock.calls),
+    ).not.toContain("bad key material");
   });
 
   it("maps permission failures to retryable states", async () => {

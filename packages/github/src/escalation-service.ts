@@ -4,7 +4,7 @@ import {
 } from "@ai-support-platform/ai";
 import { buildIssueDraft, labelsFor, markerForTicket } from "./draft";
 import { GithubError } from "./errors";
-import { screenReport } from "./privacy";
+import { type SubmittedContact, screenReport } from "./privacy";
 import type { CreatedIssue, IssueTrackerClient, TrackerFactory } from "./types";
 
 export const ESCALATION_EVENTS = {
@@ -26,6 +26,8 @@ export interface EscalationTicket {
   reportedAt: Date;
   message: string;
   categoryHint: string | null;
+  /** Private submitted contact, used only to screen the report; never drafted. */
+  contact: SubmittedContact | null;
   classification: {
     type: string;
     severity: "low" | "medium" | "high" | "critical";
@@ -200,7 +202,7 @@ export async function escalateTicketToGitHub(
     };
   }
 
-  const screen = screenReport(ticket.message);
+  const screen = screenReport(ticket.message, { contact: ticket.contact });
   if (!screen.safe) {
     await repository.recordEvent({
       projectId: ticket.projectId,

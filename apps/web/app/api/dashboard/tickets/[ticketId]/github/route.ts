@@ -116,6 +116,10 @@ async function escalationTicket(
     repository.getLatestOverride(workspaceId, projectId, ticketId),
   ]);
   if (!ticket || !submission) return undefined;
+  const contact = await repository.getConversationContact(
+    projectId,
+    ticket.conversationId,
+  );
   return {
     ticketId,
     projectId,
@@ -127,6 +131,9 @@ async function escalationTicket(
     reportedAt: ticket.createdAt,
     message: submission.message,
     categoryHint: submission.categoryHint,
+    contact: contact
+      ? { name: contact.visitorName, email: contact.visitorEmail }
+      : null,
     classification: classification
       ? {
           type: classification.type,

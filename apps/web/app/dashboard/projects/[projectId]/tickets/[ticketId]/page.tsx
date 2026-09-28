@@ -64,6 +64,9 @@ export default async function TicketDetailPage({ params }: PageProps) {
       reportedAt: ticket.createdAt,
       message: message ?? "",
       categoryHint: ticket.categoryHint,
+      contact: contact
+        ? { name: contact.visitorName, email: contact.visitorEmail }
+        : null,
       classification: classification
         ? {
             type: classification.type,

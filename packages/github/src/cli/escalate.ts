@@ -159,6 +159,10 @@ try {
     context.projectId,
     ticketId,
   );
+  const contact = await support.getConversationContact(
+    context.projectId,
+    ticket.conversationId,
+  );
   const trackers = live
     ? createTrackerFactory({
         appId: process.env.GITHUB_APP_ID ?? "",
@@ -191,6 +195,9 @@ try {
       reportedAt: ticket.createdAt,
       message: submission.message,
       categoryHint: submission.categoryHint,
+      contact: contact
+        ? { name: contact.visitorName, email: contact.visitorEmail }
+        : null,
       classification: classification
         ? {
             type: classification.type,

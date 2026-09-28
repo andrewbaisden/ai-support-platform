@@ -7,7 +7,8 @@ export interface PrivacyFinding {
     | "card-number"
     | "private-url"
     | "phone-number"
-    | "jwt";
+    | "jwt"
+    | "contact-detail";
 }
 
 const CHECKS: Array<{ kind: PrivacyFinding["kind"]; pattern: RegExp }> = [
@@ -19,12 +20,12 @@ const CHECKS: Array<{ kind: PrivacyFinding["kind"]; pattern: RegExp }> = [
   {
     kind: "api-token",
     pattern:
-      /\b(ghp_[A-Za-z0-9]{8,}|gho_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|sk-(live|test)-[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9-_.~+/]{8,})/,
+      /\b(gh[opusr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|[sr]k[-_](live|test)[-_][A-Za-z0-9]{8,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9-_.~+/]{8,})/,
   },
   {
     kind: "credential-assignment",
     pattern:
-      /\b(passw(or)?d|passwd|pwd|secret|api[_-]?key)\s*[:=]\s*['"]?\S{4,}['"]?/i,
+      /\b(passw(or)?d|passwd|pwd|secret|api[_-]?key|((access|auth|refresh|session)[_-]?)?token)\s*[:=]\s*['"]?\S{4,}['"]?/i,
   },
   {
     kind: "card-number",
@@ -68,16 +69,56 @@ export interface PrivacyScreen {
   findings: PrivacyFinding["kind"][];
 }
 
+export interface SubmittedContact {
+  name?: string | null;
+  email?: string | null;
+}
+
+const MIN_CONTACT_NAME_LENGTH = 3;
+
+function normalizeWords(text: string): string {
+  return ` ${text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .join(" ")} `;
+}
+
+/**
+ * The visitor's own submitted name or email repeated in the report. Name
+ * matching is whole-phrase and case-insensitive; partial names, nicknames,
+ * and other people's names are not detected.
+ */
+function containsSubmittedContact(
+  message: string,
+  contact: SubmittedContact,
+): boolean {
+  const email = contact.email?.trim().toLowerCase();
+  if (email && message.toLowerCase().includes(email)) return true;
+  const name = normalizeWords(contact.name ?? "").trim();
+  return (
+    name.length >= MIN_CONTACT_NAME_LENGTH &&
+    normalizeWords(message).includes(` ${name} `)
+  );
+}
+
 /**
  * Deterministic pre-publication screen. Conservative by design: any finding
  * blocks escalation for human review. Regexes cannot catch every secret;
- * this gate reduces accidents, it does not prove content safe.
+ * this gate reduces accidents, it does not prove content safe. Pass the
+ * ticket's submitted contact so a report that repeats it is also held back.
  */
-export function screenReport(message: string): PrivacyScreen {
+export function screenReport(
+  message: string,
+  options: { contact?: SubmittedContact | null } = {},
+): PrivacyScreen {
   const findings = CHECKS.filter((check) => check.pattern.test(message)).map(
     (check) => check.kind,
   );
   if (containsPrivateUrl(message)) findings.push("private-url");
+  if (options.contact && containsSubmittedContact(message, options.contact)) {
+    findings.push("contact-detail");
+  }
   return { safe: findings.length === 0, findings };
 }
 

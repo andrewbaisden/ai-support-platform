@@ -3,7 +3,7 @@ import {
   GITHUB_ESCALATION_CONFIDENCE_THRESHOLD,
 } from "@ai-support-platform/ai";
 import { buildIssueDraft } from "./draft";
-import { screenReport } from "./privacy";
+import { type SubmittedContact, screenReport } from "./privacy";
 import type { IssueDraft } from "./types";
 
 export interface PreviewTicket {
@@ -14,6 +14,8 @@ export interface PreviewTicket {
   reportedAt: Date;
   message: string;
   categoryHint: string | null;
+  /** Private submitted contact, used only to screen the report; never drafted. */
+  contact: SubmittedContact | null;
   classification: {
     type: string;
     severity: "low" | "medium" | "high" | "critical";
@@ -126,7 +128,7 @@ export function previewEscalation(input: {
       ],
     };
   }
-  const screen = screenReport(ticket.message);
+  const screen = screenReport(ticket.message, { contact: ticket.contact });
   if (!screen.safe) {
     return {
       state: "blocked",

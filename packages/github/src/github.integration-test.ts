@@ -201,6 +201,10 @@ async function escalationInput(
   if (!full || !submission || !classification) {
     throw new Error("Fixture ticket incomplete");
   }
+  const contact = await support.getConversationContact(
+    ticket.projectId,
+    full.conversationId,
+  );
   return {
     ticketId: full.id,
     projectId: full.projectId,
@@ -212,6 +216,9 @@ async function escalationInput(
     reportedAt: full.createdAt,
     message: submission.message,
     categoryHint: submission.categoryHint,
+    contact: contact
+      ? { name: contact.visitorName, email: contact.visitorEmail }
+      : null,
     classification: {
       type: classification.type,
       severity: classification.severity,
