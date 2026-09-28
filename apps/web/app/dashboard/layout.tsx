@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { requireDashboardUser } from "../../lib/dashboard-session";
+import { SignOutButton } from "./sign-out-button";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +22,17 @@ export default async function DashboardLayout({
               <a href="/dashboard">Support tickets</a>
             </h1>
           </div>
-          <p className="text-sm text-slate-600">
-            Signed in as {user.email}
-            {workspaces.length > 0 && (
-              <span className="ml-2 rounded bg-slate-100 px-2 py-1 text-xs">
-                {workspaces[0]?.role}
-              </span>
-            )}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-slate-600">
+              Signed in as {user.email}
+              {workspaces.length > 0 && (
+                <span className="ml-2 rounded bg-slate-100 px-2 py-1 text-xs">
+                  {workspaces[0]?.role}
+                </span>
+              )}
+            </p>
+            <SignOutButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>

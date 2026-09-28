@@ -113,3 +113,18 @@ test("unauthenticated dashboard access redirects to login", async ({
   await page.goto(`${PLATFORM}/dashboard`);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
+
+test("operator signs out and the session no longer opens the dashboard", async ({
+  page,
+}) => {
+  await login(page);
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to the dashboard" }),
+  ).toBeVisible();
+  await page.goto(`${PLATFORM}/dashboard`);
+  await expect(
+    page.getByRole("heading", { name: "Sign in to the dashboard" }),
+  ).toBeVisible();
+});
