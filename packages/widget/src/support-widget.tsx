@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
@@ -11,7 +10,7 @@ import {
   supportCategories,
   type WidgetTheme,
 } from "./types";
-import { type SupportFormValues, supportFormSchema } from "./validation";
+import { type SupportFormValues, supportFormResolver } from "./validation";
 
 const categoryDetails: Record<
   SupportCategory,
@@ -77,6 +76,38 @@ function ArrowIcon() {
   );
 }
 
+let sharedSheet: CSSStyleSheet | undefined;
+
+/**
+ * Attach the widget styles as a constructable stylesheet. CSSOM sheets are
+ * not inline `<style>` elements, so hosts with a strict `style-src` Content
+ * Security Policy (no `'unsafe-inline'`) still style the widget. One sheet
+ * is shared by every widget instance. Returns false where unsupported, in
+ * which case the widget falls back to a `<style>` element.
+ */
+function adoptWidgetStyles(root: ShadowRoot): boolean {
+  if (
+    typeof CSSStyleSheet === "undefined" ||
+    typeof CSSStyleSheet.prototype.replaceSync !== "function" ||
+    !("adoptedStyleSheets" in root)
+  ) {
+    return false;
+  }
+  try {
+    if (!sharedSheet) {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(widgetStyles);
+      sharedSheet = sheet;
+    }
+    if (!root.adoptedStyleSheets.includes(sharedSheet)) {
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sharedSheet];
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function useResolvedTheme(theme: WidgetTheme) {
   const [systemDark, setSystemDark] = useState(false);
 
@@ -106,6 +137,7 @@ export function SupportWidget({
   const hasOpened = useRef(defaultOpen);
   const attemptRef = useRef<{ content: string; key: string } | null>(null);
   const [shadow, setShadow] = useState<ShadowRoot | null>(null);
+  const [stylesAdopted, setStylesAdopted] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
   const [screen, setScreen] = useState<"categories" | "form" | "success">(
     "categories",
@@ -128,14 +160,18 @@ export function SupportWidget({
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<SupportFormValues>({
-    resolver: zodResolver(supportFormSchema),
+    resolver: supportFormResolver,
     defaultValues: { message: "", name: "", email: "" },
   });
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    setShadow(host.shadowRoot ?? host.attachShadow({ mode: "open" }));
+    const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    // Decide the style strategy before the first portal render so a
+    // supporting browser never inserts a CSP-blockable <style> element.
+    setStylesAdopted(adoptWidgetStyles(root));
+    setShadow(root);
   }, []);
 
   useEffect(() => {
@@ -203,7 +239,7 @@ export function SupportWidget({
       {shadow &&
         createPortal(
           <>
-            <style>{widgetStyles}</style>
+            {!stylesAdopted && <style>{widgetStyles}</style>}
             <div className="root" data-theme={resolvedTheme}>
               {!open ? (
                 <button

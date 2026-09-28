@@ -1,7 +1,7 @@
-export type { SupportCategory } from "@ai-support-platform/support-contracts";
-export { supportCategories } from "@ai-support-platform/support-contracts";
+export type { SupportCategory } from "@ai-support-platform/support-contracts/constants";
+export { supportCategories } from "@ai-support-platform/support-contracts/constants";
 
-import type { SupportCategory } from "@ai-support-platform/support-contracts";
+import type { SupportCategory } from "@ai-support-platform/support-contracts/constants";
 export type WidgetPosition = "bottom-right" | "bottom-left";
 export type WidgetTheme = "light" | "dark" | "system";
 

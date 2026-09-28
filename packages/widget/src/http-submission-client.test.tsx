@@ -40,7 +40,10 @@ describe("HttpSupportSubmissionClient", () => {
 
     expect(result).toEqual({ reference: "SUP-42" });
     expect(fetchImpl).toHaveBeenCalledOnce();
-    const [url, init] = fetchImpl.mock.calls[0] as [URL, RequestInit];
+    const [url, init] = vi.mocked(fetchImpl).mock.calls[0] as [
+      URL,
+      RequestInit,
+    ];
     expect(String(url)).toBe(
       `https://api.support-platform.example/api/v1/support/tickets?projectKey=${PROJECT_KEY}`,
     );
@@ -66,7 +69,7 @@ describe("HttpSupportSubmissionClient", () => {
       .catch((value: unknown) => value);
     expect(error).toBeInstanceOf(HttpSubmissionError);
     expect((error as HttpSubmissionError).code).toBe("RATE_LIMITED");
-    const [, init] = fetchImpl.mock.calls[0] as [URL, RequestInit];
+    const [, init] = vi.mocked(fetchImpl).mock.calls[0] as [URL, RequestInit];
     expect(JSON.parse(String(init.body))).not.toHaveProperty("contact");
   });
 

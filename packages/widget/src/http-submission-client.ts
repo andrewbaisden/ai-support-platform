@@ -1,8 +1,8 @@
 import {
   type PublicErrorCode,
-  publicErrorResponseSchema,
-  ticketSubmissionResponseSchema,
-} from "@ai-support-platform/support-contracts";
+  publicErrorCodes,
+  TICKET_REFERENCE_PATTERN,
+} from "@ai-support-platform/support-contracts/constants";
 import type { SupportSubmissionClient } from "./types";
 
 export type HttpSubmissionErrorCode =
@@ -76,13 +76,43 @@ export class HttpSupportSubmissionClient implements SupportSubmissionClient {
       throw new HttpSubmissionError("INVALID_RESPONSE");
     }
     if (!response.ok) {
-      const parsed = publicErrorResponseSchema.safeParse(body);
-      throw new HttpSubmissionError(
-        parsed.success ? parsed.data.error.code : "INVALID_RESPONSE",
-      );
+      throw new HttpSubmissionError(readErrorCode(body) ?? "INVALID_RESPONSE");
     }
-    const parsed = ticketSubmissionResponseSchema.safeParse(body);
-    if (!parsed.success) throw new HttpSubmissionError("INVALID_RESPONSE");
-    return { reference: parsed.data.ticketReference };
+    const reference = readTicketReference(body);
+    if (!reference) throw new HttpSubmissionError("INVALID_RESPONSE");
+    return { reference };
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: string[]) {
+  const actual = Object.keys(value);
+  return (
+    actual.length === keys.length && keys.every((key) => actual.includes(key))
+  );
+}
+
+/** `{ ticketReference: "SUP-<n>", status: "received" }`, exactly. */
+export function readTicketReference(body: unknown): string | undefined {
+  if (
+    !isRecord(body) ||
+    !hasOnlyKeys(body, ["ticketReference", "status"]) ||
+    body.status !== "received" ||
+    typeof body.ticketReference !== "string" ||
+    !TICKET_REFERENCE_PATTERN.test(body.ticketReference)
+  ) {
+    return undefined;
+  }
+  return body.ticketReference;
+}
+
+/** `{ error: { code } }` with a documented public code, exactly. */
+export function readErrorCode(body: unknown): PublicErrorCode | undefined {
+  if (!isRecord(body) || !hasOnlyKeys(body, ["error"])) return undefined;
+  const error = body.error;
+  if (!isRecord(error) || !hasOnlyKeys(error, ["code"])) return undefined;
+  return publicErrorCodes.find((code) => code === error.code);
 }

@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@ai-support-platform/support-contracts": "workspace:*",
-    "@ai-support-platform/widget": "workspace:*",
+    "@issuerelay/widget": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

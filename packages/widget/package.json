@@ -1,18 +1,51 @@
 {
-  "name": "@ai-support-platform/widget",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@issuerelay/widget",
+  "version": "0.1.0",
+  "description": "Embeddable React support widget for IssueRelay: questions, bug reports, and feature requests in an isolated Shadow DOM, with no CSS setup.",
+  "license": "MIT",
+  "author": "Andrew Baisden",
+  "homepage": "https://github.com/andrewbaisden/issuerelay/tree/main/packages/widget#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrewbaisden/issuerelay.git",
+    "directory": "packages/widget"
+  },
+  "bugs": {
+    "url": "https://github.com/andrewbaisden/issuerelay/issues"
+  },
+  "keywords": [
+    "support",
+    "widget",
+    "react",
+    "feedback",
+    "bug-report",
+    "shadow-dom",
+    "github"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -20,15 +53,14 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@ai-support-platform/support-contracts": "workspace:*",
-    "@hookform/resolvers": "^5.6.0",
-    "react-hook-form": "^7.0.0",
-    "zod": "^4.0.0"
+    "react-hook-form": "^7.0.0"
   },
   "devDependencies": {
+    "@ai-support-platform/support-contracts": "workspace:*",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsup": "8.5.1",
     "typescript": "^5.9.0"
   }
 }

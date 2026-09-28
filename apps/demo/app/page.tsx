@@ -6,7 +6,7 @@ import {
   SupportWidget,
   type WidgetPosition,
   type WidgetTheme,
-} from "@ai-support-platform/widget";
+} from "@issuerelay/widget";
 import { useRef, useState } from "react";
 
 export default function DemoPage() {

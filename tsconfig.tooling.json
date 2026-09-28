@@ -3,5 +3,10 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["vitest.config.ts", "playwright.config.ts", "e2e/**/*.ts"]
+  "include": [
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "e2e/**/*.ts",
+    "package-check/*.ts"
+  ]
 }
