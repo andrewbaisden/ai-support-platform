@@ -26,7 +26,7 @@ The platform must preserve reports when Jev, the generator, or GitHub is down. I
 
 Operator access uses Better Auth email/password with database sessions (`user`/`session`/`account`/`verification` plus `workspace_members`). Passwords are provider-hashed (minimum 12 characters); `TYPESAFE`-style provider keys are never involved. `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` are server-only; the secret has no default and the app refuses to construct auth without it. Email verification is off until delivery exists — production must enable it. Browser code imports only `@ai-support-platform/auth/client` (session client); importing the package root into a client component bundles Node-only database code and breaks the build, which the login form regression-proves by using the subpath.
 
-Every dashboard read resolves project→workspace and asserts membership server-side; unknown or foreign IDs return 404 without revealing existence. Mutations additionally verify request `Origin` against the request host for cookie CSRF protection (same-origin fetch sends cookies; the public widget flow stays credentialless and unaffected). Public self-signup endpoints return 404 unless `AUTH_ALLOW_SIGNUP=true`; the owner bootstraps via the seed flow. Callback URLs accept same-origin relative paths only. Dashboard routes are `force-dynamic` so authenticated pages are never statically cached or shared. Contact details render only on authorized detail pages, never in lists; override reasons are owner-written audit text, not visitor PII.
+Every dashboard read resolves project→workspace and asserts membership server-side; unknown or foreign IDs return 404 without revealing existence. Mutations additionally require a request `Origin` matching the request host for cookie CSRF protection (a missing `Origin` is refused since Phase 10; the public widget flow stays credentialless and unaffected). Public self-signup endpoints return 404 unless `AUTH_ALLOW_SIGNUP=true`; the owner bootstraps via the seed flow. Callback URLs accept same-origin relative paths only. Dashboard routes are `force-dynamic` so authenticated pages are never statically cached or shared. Contact details render only on authorized detail pages, never in lists; override reasons are owner-written audit text, not visitor PII.
 
 ## Data isolation and authentication
 
@@ -69,6 +69,15 @@ Security review: the signed body can still be malicious input, so the minimal Zo
 ## Demo journey completion (Phase 9)
 
 Escalation additionally requires model/manual provenance or an owner recommendation (ADR-022), so synthetic fixture decisions cannot publish through a real App. The dashboard's unknown-outcome check can only reconcile a trusted App-authored issue, never create one. Previews no longer need App credentials; creation fails closed without them. Operator recovery, including accidental publication, is in [docs/GITHUB_RECOVERY.md](docs/GITHUB_RECOVERY.md). Before any further public exposure, replace the example `BETTER_AUTH_SECRET` and owner password: the live validation found both in use behind a public tunnel.
+
+## Production hardening (Phase 10)
+
+- Dashboard mutations require a same-origin `Origin`; publishing and overrides require the owner role (ADR-024). Post-login redirects are limited to same-origin `/dashboard` paths.
+- Production startup fails closed on example/weak `BETTER_AUTH_SECRET`, non-HTTPS `BETTER_AUTH_URL`, short `GITHUB_WEBHOOK_SECRET`, `GITHUB_ESCALATION_MOCK`, or `AUTH_ALLOW_SIGNUP=true`; errors name settings, never values. Responses forbid framing and MIME sniffing and send HSTS in production.
+- Out-of-order and pre-link webhook deliveries can no longer regress or lose issue state (ADR-023).
+- `pnpm db:retention` erases contact details and old delivery rows (ADR-025).
+- Dependency audit (2026-09-28): one moderate advisory, `esbuild` ≤0.24.2 (GHSA-67mh-4wv8-2f99), reached only through `better-auth → drizzle-kit → @esbuild-kit/*`. It affects esbuild's development `serve` mode, which this project never runs; accepted and to be rechecked on dependency updates.
+- Still deferred to deployment: email verification with a delivery provider, hosting-level TLS/WAF, secret storage, and scheduled retention.
 
 ## Logs, retention, and incident response
 

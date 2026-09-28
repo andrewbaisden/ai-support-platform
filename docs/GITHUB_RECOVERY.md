@@ -41,7 +41,7 @@ Then follow [Unknown outcome](#unknown-outcome). Only after confirming no issue 
 - **Nothing arrives:** in the GitHub App settings, confirm the webhook is active, the URL ends in `/api/webhooks/github`, and **Subscribe to events → Issues** is ticked. An App with Issues permission but no Issues subscription receives only `ping`. The live journey hit exactly this.
 - **Failed delivery (4xx/5xx):** fix the cause (secret mismatch → 401, database outage → 503), then use **Redeliver** under the App's Advanced → Recent Deliveries. GitHub does not retry failures automatically. Redelivery keeps the delivery ID, so a delivery that already succeeded is a safe no-op.
 - **Changes GitHub never sent** (for example, closes made before the subscription existed): there is nothing to redeliver. Reopen and close the issue in GitHub again so fresh events are sent.
-- **Out-of-order events:** two distinct deliveries processed in the wrong order can leave the dashboard behind GitHub. Compare both; if they differ, toggle the issue in GitHub to send the current state again.
+- **Out-of-order events:** a delivery older than the state already applied is ignored as `stale_event` (Phase 10), and a close that arrives before the link exists is picked up by the state read after linking. Two events in the same second cannot be ordered; if the dashboard and GitHub still differ, toggle the issue in GitHub to send the current state again.
 - **Tunnels:** a quick-tunnel hostname can stop resolving while the process still runs. Start a new tunnel, update the App webhook URL, and redeliver anything that failed in between. Rotate the example owner password and `BETTER_AUTH_SECRET` before exposing the dashboard.
 
 ## Accidental publication

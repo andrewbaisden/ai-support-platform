@@ -1,6 +1,6 @@
 # Development guide
 
-This page holds the setup and implementation detail moved out of the public-facing [README](../README.md). It describes the repository as implemented through Phase 8. Use [ARCHITECTURE.md](../ARCHITECTURE.md) for domain and state rules, [SECURITY.md](../SECURITY.md) for trust boundaries, and [TESTING.md](../TESTING.md) for fixtures and gates.
+This page holds the setup and implementation detail moved out of the public-facing [README](../README.md). It describes the repository as implemented through Phase 10. Use [ARCHITECTURE.md](../ARCHITECTURE.md) for domain and state rules, [SECURITY.md](../SECURITY.md) for trust boundaries, and [TESTING.md](../TESTING.md) for fixtures and gates.
 
 ## Requirements and local setup
 

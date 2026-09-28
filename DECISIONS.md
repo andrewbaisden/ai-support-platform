@@ -168,6 +168,30 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** Seeded and fixture-triaged tickets show a provenance block on real App configurations until re-triaged with Jev or recommended by an owner. The live runner records an owner recommendation when it uses fixture triage.
 
+## ADR-023 — Remote ordering watermark and post-link state sync
+
+**Decision:** Persist the newest applied GitHub `issue.updated_at` on the issue link and ignore older deliveries as stale. After confirming a link, read the issue's current state once and apply it through the same policy and locks as a webhook, without recording a delivery.
+
+**Why:** Distinct deliveries can arrive out of order, and a close within seconds of creation can arrive before the link exists (Phase 8 review item 5). A timestamp from the provider orders events without a fresh read on every webhook; one read after linking closes the pre-link gap.
+
+**Consequence:** Migration `0006` adds a nullable column; links without a timestamp accept the next event. One-second precision means same-second events keep arrival order. The post-link read costs one API call and fails open (the link stands).
+
+## ADR-024 — Owner-only publishing and required Origin
+
+**Decision:** Dashboard mutations require a same-origin `Origin` header. GitHub creation/reconciliation and review overrides require the workspace owner role; members may view, preview, re-triage, and change ticket status. Production startup refuses example or weak secrets, a non-HTTPS auth URL, the mock escalation flag, and self-signup without email verification. Email verification and a delivery provider are deferred to the deployment phase.
+
+**Why:** Publishing to a public repository and overriding AI decisions are the highest-impact actions. `SameSite=Lax` cookies alone depend on browser policy. The live validation found example credentials behind a public tunnel.
+
+**Consequence:** Scripts calling dashboard routes must send `Origin`. Member invitations still need an implementation before a second member exists; the gates are in place for it.
+
+## ADR-025 — Retention by explicit command
+
+**Decision:** Retention runs as `pnpm db:retention`, dry run by default: erase contact details 180 days after resolution (a `contact_details_erased` event records it) and delete terminal webhook delivery rows after 90 days (minimum 7). Reports, classifications, and PII-free events are kept.
+
+**Why:** Contact details have no use after a ticket is closed for months; webhook rows are only needed for deduplication inside GitHub's redelivery window. A command avoids adding a scheduler before hosting is chosen.
+
+**Consequence:** The deployment phase schedules the command. Resolution time is approximated by `tickets.updated_at`, so later edits postpone (never hasten) erasure.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.

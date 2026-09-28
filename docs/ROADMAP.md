@@ -1,6 +1,6 @@
 # Roadmap
 
-The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The current repository has completed Phase 9: the [live journey validation](reviews/phase-09-live-journey-test-review.md) against a disposable repository and the [operational follow-up](handoffs/phase-09.md). A production-readiness pass (Phase 10) remains before public use.
+The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The current repository has completed Phase 10. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
 
 | Phase | Outcome | State |
 | --- | --- | --- |
@@ -10,7 +10,8 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | 5–6 | AI triage and owner dashboard | Complete |
 | 7–8 | Operator-confirmed GitHub escalation and signed webhook synchronization | Complete; live-validated in a disposable repository |
 | 9 | Complete and validate the controlled demo journey in a disposable repository | Complete ([handoff](handoffs/phase-09.md)) |
-| 10–12 | Production hardening, external widget package validation and npm publication | Later |
+| 10 | Production hardening | Complete ([handoff](handoffs/phase-10.md)) |
+| 11–12 | External widget package validation and npm publication | Later |
 | 13–15 | Portfolio installation, dogfooding and technical article | Later |
 
 ## Next validation
