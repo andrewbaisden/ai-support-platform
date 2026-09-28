@@ -8,12 +8,17 @@ import {
 } from "./schema";
 
 const originSchema = z.url().refine((value) => {
+  // Zod still runs refinements after a failed URL check.
+  if (!URL.canParse(value)) return false;
   const url = new URL(value);
   return (
     (url.protocol === "http:" || url.protocol === "https:") &&
     url.origin === value
   );
 });
+
+/** A project's allowed browser origins: exact http(s) origins, at most 20. */
+export const projectOriginsSchema = z.array(originSchema).max(20);
 
 export const projectInputSchema = z.object({
   workspaceId: z.uuid(),
@@ -23,7 +28,7 @@ export const projectInputSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
     .max(80),
   publicKey: z.string().regex(/^pk_[A-Za-z0-9_-]{32}$/),
-  allowedOrigins: z.array(originSchema).max(20).default([]),
+  allowedOrigins: projectOriginsSchema.default([]),
 });
 
 export const submissionInputSchema = z.object({

@@ -1,3 +1,5 @@
+import { resolveAuthBaseUrl } from "@ai-support-platform/auth";
+
 /** Example values shipped in `.env.example`; never valid in production. */
 const EXAMPLE_AUTH_SECRETS = new Set([
   "local-dev-only-change-me-in-production-0123456789abcdef",
@@ -32,7 +34,8 @@ export function productionConfigProblems(env: Env): string[] {
 
   let authUrlSecure = false;
   try {
-    authUrlSecure = new URL(env.BETTER_AUTH_URL ?? "").protocol === "https:";
+    authUrlSecure =
+      new URL(resolveAuthBaseUrl(env) ?? "").protocol === "https:";
   } catch {
     authUrlSecure = false;
   }
@@ -61,6 +64,12 @@ export function productionConfigProblems(env: Env): string[] {
   if (env.AUTH_ALLOW_SIGNUP === "true" && !emailConfigured) {
     problems.push(
       "AUTH_ALLOW_SIGNUP requires email verification, which is not configured",
+    );
+  }
+  const setupToken = env.SETUP_TOKEN;
+  if (setupToken !== undefined && setupToken.length < MIN_SECRET_LENGTH) {
+    problems.push(
+      `SETUP_TOKEN must be at least ${MIN_SECRET_LENGTH} characters`,
     );
   }
   // Vercel Cron authenticates to the retention route with this secret.

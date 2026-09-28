@@ -63,6 +63,12 @@ export default async function TicketListPage({
         <p className="text-sm text-slate-600" role="status">
           {total} ticket{total === 1 ? "" : "s"}
         </p>
+        <a
+          className="ml-auto text-sm font-medium text-blue-700 underline"
+          href={`/dashboard/projects/${project.id}/settings`}
+        >
+          Project settings
+        </a>
       </div>
 
       <form

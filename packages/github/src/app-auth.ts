@@ -240,3 +240,88 @@ export function createTrackerFactory(options: {
     },
   };
 }
+
+export interface RepositoryInstallation {
+  installationId: string;
+  repositoryId: string;
+  owner: string;
+  repo: string;
+}
+
+/**
+ * Resolve which installation of this App covers `owner/repo`, then read the
+ * repository's canonical identity with that installation's token (the same
+ * rule escalation uses before creating). Undefined when the App is not
+ * installed on the repository or cannot see it.
+ */
+export async function lookupRepositoryInstallation(
+  options: { appId: string; privateKey: string },
+  input: { owner: string; repo: string },
+): Promise<RepositoryInstallation | undefined> {
+  if (!options.appId || !options.privateKey) {
+    throw new GithubError(
+      "GITHUB_MISCONFIGURED",
+      "GitHub App ID and private key are required",
+    );
+  }
+  const app = new App({ appId: options.appId, privateKey: options.privateKey });
+  let installationId: number;
+  try {
+    const installation = await withTimeout(
+      "repository installation",
+      app.octokit.request("GET /repos/{owner}/{repo}/installation", input),
+    );
+    installationId = installation.data.id;
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw toGithubError(error);
+  }
+  try {
+    const octokit = await withTimeout(
+      "installation token",
+      app.getInstallationOctokit(installationId),
+    );
+    const repository = await withTimeout(
+      "repository",
+      octokit.request("GET /repos/{owner}/{repo}", input),
+    );
+    return {
+      installationId: String(installationId),
+      repositoryId: String(repository.data.id),
+      owner: repository.data.owner.login,
+      repo: repository.data.name,
+    };
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw toGithubError(error);
+  }
+}
+
+function isNotFound(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status: unknown }).status === 404
+  );
+}
+
+/** Where an owner installs this App on a repository (best effort). */
+export async function fetchAppInstallUrl(options: {
+  appId: string;
+  privateKey: string;
+}): Promise<string | undefined> {
+  try {
+    const app = new App({
+      appId: options.appId,
+      privateKey: options.privateKey,
+    });
+    const response = await withTimeout("app", app.octokit.request("GET /app"));
+    const slug = response.data?.slug;
+    return typeof slug === "string" && slug
+      ? `https://github.com/apps/${slug}/installations/new`
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}

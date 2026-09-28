@@ -8,6 +8,9 @@ export const E2E_WEBHOOK_SECRET = "local-e2e-webhook-secret";
 // (3000/3001) without sharing its server, database, or credentials.
 export const PLATFORM = "http://127.0.0.1:3100";
 export const DEMO = "http://127.0.0.1:3101";
+// A third platform server on an empty database proves first-run setup.
+export const SETUP_PLATFORM = "http://127.0.0.1:3102";
+export const E2E_SETUP_TOKEN = "local-e2e-setup-token-0123456789abcdef";
 // Local seed credentials for the isolated E2E database only; see .env.example.
 export const E2E_OWNER = {
   email: "owner@local.example",
@@ -45,5 +48,12 @@ export function e2eDatabaseUrl(): string {
   ) {
     throw new Error("E2E database must be a separate local *_e2e database");
   }
+  return url.toString();
+}
+
+/** Empty database for the first-run setup server: `<e2e name>_setup_e2e`. */
+export function e2eSetupDatabaseUrl(): string {
+  const url = new URL(e2eDatabaseUrl());
+  url.pathname = url.pathname.replace(/_e2e$/, "_setup_e2e");
   return url.toString();
 }

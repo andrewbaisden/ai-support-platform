@@ -3,7 +3,8 @@ import { loadRootEnv, requireDatabaseUrl } from "./env";
 
 /**
  * Browser-test database tooling. `create` makes the database named by
- * DATABASE_URL when missing; `allow-origin <origin>` lets the seeded
+ * DATABASE_URL when missing; `recreate` drops and recreates it empty (the
+ * first-run setup suite needs a database with no accounts); `allow-origin <origin>` lets the seeded
  * projects accept the E2E demo origin. Refusing anything but a local `_e2e`
  * database keeps this from touching development or hosted data.
  */
@@ -18,11 +19,15 @@ if (
 }
 const [command, argument] = process.argv.slice(2);
 
-if (command === "create") {
+if (command === "create" || command === "recreate") {
   const admin = new URL(target);
   admin.pathname = "/postgres";
   const pool = new Pool({ connectionString: admin.toString(), max: 1 });
   try {
+    if (command === "recreate") {
+      // Identifier validated above; DROP DATABASE cannot take a parameter.
+      await pool.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+    }
     const existing = await pool.query(
       "SELECT 1 FROM pg_database WHERE datname = $1",
       [name],
@@ -48,5 +53,7 @@ if (command === "create") {
     await pool.end();
   }
 } else {
-  throw new Error("Usage: e2e-database.ts create | allow-origin <origin>");
+  throw new Error(
+    "Usage: e2e-database.ts create | recreate | allow-origin <origin>",
+  );
 }

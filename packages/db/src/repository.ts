@@ -15,8 +15,10 @@ import type { Database } from "./client";
 import {
   type ClassificationInput,
   classificationInputSchema,
+  generatePublicProjectKey,
   type ProjectInput,
   projectInputSchema,
+  projectOriginsSchema,
   type SubmissionInput,
   submissionInputSchema,
   type TicketOverrideInput,
@@ -326,6 +328,116 @@ export function createSupportRepository(db: Database) {
         .returning();
       if (!workspace) throw new Error("Workspace insert did not return a row");
       return workspace;
+    },
+
+    /** Number of dashboard accounts; zero means a fresh installation. */
+    async countUsers() {
+      const [row] = await db.select({ total: count() }).from(users);
+      return row?.total ?? 0;
+    },
+
+    /**
+     * First-run bootstrap for an existing owner account: reuse or create the
+     * owner's workspace (matched by name) and a project in it (matched by
+     * slug) in one transaction. Never creates demo data.
+     */
+    async bootstrapWorkspaceProject(input: {
+      userId: string;
+      workspaceName: string;
+      project: { name: string; slug: string; allowedOrigins: string[] };
+    }) {
+      const valid = z
+        .object({
+          userId: z.string().trim().min(1).max(128),
+          workspaceName: z.string().trim().min(1).max(120),
+          project: z.object({
+            name: z.string().trim().min(1).max(120),
+            slug: z
+              .string()
+              .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+              .max(80),
+            allowedOrigins: projectOriginsSchema,
+          }),
+        })
+        .parse(input);
+      return db.transaction(async (tx) => {
+        const [existingWorkspace] = await tx
+          .select({ workspace: workspaces })
+          .from(workspaceMembers)
+          .innerJoin(
+            workspaces,
+            eq(workspaceMembers.workspaceId, workspaces.id),
+          )
+          .where(
+            and(
+              eq(workspaceMembers.userId, valid.userId),
+              eq(workspaceMembers.role, "owner"),
+              eq(workspaces.name, valid.workspaceName),
+            ),
+          )
+          .limit(1);
+        let workspace = existingWorkspace?.workspace;
+        const createdWorkspace = !workspace;
+        if (!workspace) {
+          [workspace] = await tx
+            .insert(workspaces)
+            .values({ name: valid.workspaceName })
+            .returning();
+          if (!workspace) throw new Error("Workspace insert failed");
+          await tx.insert(workspaceMembers).values({
+            workspaceId: workspace.id,
+            userId: valid.userId,
+            role: "owner",
+          });
+        }
+        const [existingProject] = await tx
+          .select()
+          .from(projects)
+          .where(
+            and(
+              eq(projects.workspaceId, workspace.id),
+              eq(projects.slug, valid.project.slug),
+            ),
+          )
+          .limit(1);
+        let project = existingProject;
+        const createdProject = !project;
+        if (!project) {
+          [project] = await tx
+            .insert(projects)
+            .values({
+              workspaceId: workspace.id,
+              name: valid.project.name,
+              slug: valid.project.slug,
+              publicKey: generatePublicProjectKey(),
+              allowedOrigins: valid.project.allowedOrigins,
+            })
+            .returning();
+          if (!project) throw new Error("Project insert failed");
+        }
+        return { workspace, project, createdWorkspace, createdProject };
+      });
+    },
+
+    /** Replace a project's allowed origins within its workspace. */
+    async updateProjectAllowedOrigins(
+      workspaceId: string,
+      projectId: string,
+      origins: string[],
+    ) {
+      const validOrigins = projectOriginsSchema.parse([...new Set(origins)]);
+      const [project] = await db
+        .update(projects)
+        .set({ allowedOrigins: validOrigins, updatedAt: new Date() })
+        .where(
+          and(
+            eq(projects.workspaceId, workspaceId),
+            eq(projects.id, projectId),
+          ),
+        )
+        .returning();
+      if (!project) throw new Error("Project not found in workspace");
+      return project;
     },
 
     async createProject(input: ProjectInput) {

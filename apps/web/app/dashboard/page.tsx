@@ -20,7 +20,8 @@ export default async function DashboardPage() {
       <h2 className="text-2xl font-semibold tracking-tight">Projects</h2>
       <p className="mt-2 max-w-2xl text-slate-600">
         Ticket volume by workflow state. Open a project to filter, inspect,
-        re-triage, or resolve tickets.
+        re-triage, or resolve tickets, or open its settings for the widget key,
+        site addresses, and GitHub repository.
       </p>
       {overview.length === 0 && (
         <p
@@ -79,12 +80,21 @@ export default async function DashboardPage() {
                       </div>
                     ))}
                   </dl>
-                  <a
-                    className="mt-4 inline-block font-medium text-blue-700 underline"
-                    href={`/dashboard/projects/${project.id}/tickets`}
-                  >
-                    Open tickets
-                  </a>
+                  <div className="mt-4 flex gap-4">
+                    <a
+                      className="font-medium text-blue-700 underline"
+                      href={`/dashboard/projects/${project.id}/tickets`}
+                    >
+                      Open tickets
+                    </a>
+                    <a
+                      className="font-medium text-blue-700 underline"
+                      href={`/dashboard/projects/${project.id}/settings`}
+                      aria-label={`${project.name} settings`}
+                    >
+                      Settings
+                    </a>
+                  </div>
                 </li>
               );
             })}

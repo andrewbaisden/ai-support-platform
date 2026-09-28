@@ -1,11 +1,13 @@
 import {
-  createDatabase,
-  createSupportRepository,
-  generatePublicProjectKey,
+  getSharedDatabase,
   loadRootEnv,
   requireDatabaseUrl,
 } from "@ai-support-platform/db";
-import { getAuth } from "../auth";
+import {
+  BootstrapError,
+  bootstrapInstallation,
+  createBootstrapPorts,
+} from "../bootstrap";
 
 /**
  * Production bootstrap without demo data: one owner (verified, because an
@@ -70,69 +72,40 @@ if (!process.argv.includes("--yes")) {
   process.exit(2);
 }
 
-const { db, pool } = createDatabase(target.toString());
-const support = createSupportRepository(db);
+const ports = createBootstrapPorts();
 try {
-  let user = await support.findUserByEmail(ownerEmail);
-  if (!user) {
-    // A password is needed only to create the owner; it is never changed.
-    if (!ownerPassword || ownerPassword.length < 16) {
-      throw new Error(
-        "OWNER_PASSWORD (16+ characters) is required to create a new owner.",
-      );
-    }
-    const created = await getAuth().api.signUpEmail({
-      body: {
-        email: ownerEmail,
-        password: ownerPassword,
-        name: argValue("--owner-name") ?? "Workspace Owner",
-      },
-      headers: new Headers(),
-    });
-    if (!created?.user) throw new Error("Owner signup did not return a user");
-    user = await support.findUserByEmail(ownerEmail);
-    process.stdout.write(`Created owner ${ownerEmail}\n`);
-  } else {
-    process.stdout.write(`Owner exists: ${ownerEmail} (password unchanged)\n`);
-  }
-  if (!user) throw new Error("Owner not found after creation");
-  await support.markUserEmailVerified(user.id);
-
-  const memberships = await support.listWorkspacesForUser(user.id);
-  let workspace = memberships.find(
-    (row) => row.role === "owner" && row.workspace.name === workspaceName,
-  )?.workspace;
-  if (!workspace) {
-    workspace = await support.createWorkspace(workspaceName);
-    await support.createWorkspaceMember({
-      workspaceId: workspace.id,
-      userId: user.id,
-      role: "owner",
-    });
-    process.stdout.write(`Created workspace ${workspaceName}\n`);
-  } else {
-    process.stdout.write(`Workspace exists: ${workspaceName}\n`);
-  }
-
-  const projects = await support.listProjectsForWorkspace(workspace.id);
-  let project = projects.find((row) => row.slug === slug);
-  if (!project) {
-    project = await support.createProject({
-      workspaceId: workspace.id,
-      name: projectName,
-      slug,
-      publicKey: generatePublicProjectKey(),
-      allowedOrigins: origins,
-    });
-    process.stdout.write(`Created project ${projectName}\n`);
-  } else {
-    process.stdout.write(
-      `Project exists: ${project.name} (origins: ${project.allowedOrigins.join(", ")})\n`,
-    );
-  }
+  const result = await bootstrapInstallation(ports, {
+    ownerEmail,
+    ownerName: argValue("--owner-name") ?? "Workspace Owner",
+    ...(ownerPassword ? { ownerPassword } : {}),
+    workspaceName,
+    projectName,
+    projectSlug: slug,
+    allowedOrigins: origins,
+  });
   process.stdout.write(
-    `\nWorkspace ID: ${workspace.id}\nProject ID:   ${project.id}\nWidget key:   ${project.publicKey}  (public; use as projectKey)\n`,
+    result.createdOwner
+      ? `Created owner ${ownerEmail}\n`
+      : `Owner exists: ${ownerEmail} (password unchanged)\n`,
   );
+  process.stdout.write(
+    `${result.createdWorkspace ? "Created workspace" : "Workspace exists:"} ${workspaceName}\n`,
+  );
+  process.stdout.write(
+    result.createdProject
+      ? `Created project ${result.projectName}\n`
+      : `Project exists: ${result.projectName} (origins: ${result.allowedOrigins.join(", ")})\n`,
+  );
+  process.stdout.write(
+    `\nWorkspace ID: ${result.workspaceId}\nProject ID:   ${result.projectId}\nWidget key:   ${result.publicKey}  (public; use as projectKey)\n`,
+  );
+} catch (error) {
+  if (error instanceof BootstrapError) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 2;
+  } else {
+    throw error;
+  }
 } finally {
-  await pool.end();
+  await getSharedDatabase(target.toString()).pool.end();
 }

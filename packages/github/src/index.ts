@@ -1,4 +1,15 @@
-export { createTrackerFactory } from "./app-auth";
+export {
+  createTrackerFactory,
+  fetchAppInstallUrl,
+  lookupRepositoryInstallation,
+  type RepositoryInstallation,
+} from "./app-auth";
+export {
+  appEnvFile,
+  buildAppManifest,
+  type CreatedApp,
+  convertManifestCode,
+} from "./app-manifest";
 export {
   buildIssueDraft,
   type DraftInput,

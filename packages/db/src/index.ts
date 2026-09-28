@@ -15,6 +15,7 @@ export {
   generatePublicProjectKey,
   type ProjectInput,
   projectInputSchema,
+  projectOriginsSchema,
   type SubmissionInput,
   submissionInputSchema,
   type TicketOverrideInput,

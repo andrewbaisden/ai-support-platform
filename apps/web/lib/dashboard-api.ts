@@ -35,7 +35,8 @@ export type DashboardApiError =
   | "INVALID_REQUEST"
   | "INVALID_TRANSITION";
 
-function isSameOrigin(request: Request): boolean {
+/** Same-origin browser request: Origin present and equal to the Host. */
+export function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
   if (!origin || !host) return false;

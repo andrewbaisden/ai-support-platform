@@ -87,6 +87,28 @@ export async function getScopedProject(userId: string, projectId: string) {
   return { access, project };
 }
 
+/** Project settings: key, origins, and the connected repository, if any. */
+export async function getProjectSettings(userId: string, projectId: string) {
+  const scoped = await getScopedProject(userId, projectId);
+  if (!scoped) return undefined;
+  const integration = await repository().getIntegrationForProject(
+    scoped.access.workspaceId,
+    projectId,
+  );
+  return {
+    ...scoped,
+    repository: integration
+      ? {
+          fullName: `${integration.repositoryOwner}/${integration.repositoryName}`,
+          status: integration.status,
+        }
+      : undefined,
+    githubConfigured: Boolean(
+      process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY,
+    ),
+  };
+}
+
 const PAGE_SIZE = 20;
 
 export async function getProjectTickets(

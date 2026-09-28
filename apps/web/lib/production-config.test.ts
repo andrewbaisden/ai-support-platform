@@ -90,6 +90,31 @@ describe("production configuration guard", () => {
     ).toEqual([]);
   });
 
+  it("accepts Vercel's production domain when BETTER_AUTH_URL is unset", () => {
+    const { BETTER_AUTH_URL: _url, ...withoutUrl } = safe;
+    expect(
+      productionConfigProblems({
+        ...withoutUrl,
+        VERCEL_PROJECT_PRODUCTION_URL: "issuerelay-self.vercel.app",
+      }),
+    ).toEqual([]);
+    expect(productionConfigProblems(withoutUrl)).toEqual([
+      "BETTER_AUTH_URL must be an https:// URL",
+    ]);
+  });
+
+  it("requires a strong first-run setup token when one is set", () => {
+    expect(productionConfigProblems({ ...safe, SETUP_TOKEN: "short" })).toEqual(
+      ["SETUP_TOKEN must be at least 32 characters"],
+    );
+    expect(
+      productionConfigProblems({
+        ...safe,
+        SETUP_TOKEN: "k4R9vQ2mX7pL1zN8sT5wY3bC6dF0gH2jK4mP",
+      }),
+    ).toEqual([]);
+  });
+
   it("rejects missing, short, and low-variety auth secrets", () => {
     expect(
       productionConfigProblems({ ...safe, BETTER_AUTH_SECRET: undefined }),
