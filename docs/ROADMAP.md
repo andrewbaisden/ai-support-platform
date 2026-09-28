@@ -1,6 +1,6 @@
 # Roadmap
 
-The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–12 up to the first npm publish. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
+The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–12: `@issuerelay/widget@0.1.0` is on npm. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
 
 | Phase | Outcome | State |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | 9 | Complete and validate the controlled demo journey in a disposable repository | Complete ([handoff](handoffs/phase-09.md)) |
 | 10 | Production hardening | Complete ([handoff](handoffs/phase-10.md)) |
 | 11 | External widget package validation | Complete ([handoff](handoffs/phase-11.md)) |
-| 12 | npm publication of `@issuerelay/widget` | Prepared; first publish awaits owner ([handoff](handoffs/phase-12.md)) |
+| 12 | npm publication of `@issuerelay/widget` | Complete: 0.1.0 published and verified ([handoff](handoffs/phase-12.md)) |
 | Deploy | Vercel + Neon hosting, Resend email verification, scheduled retention | Next, requires owner approval |
 | 13–15 | Portfolio installation and dogfooding | Later |
 
@@ -22,4 +22,4 @@ The live journey passed against `ai-support-platform-live-test` (see the [review
 
 ## Release status
 
-The widget is MIT-licensed and validated as an external package; its first npm release (`@issuerelay/widget@0.1.0`) is prepared and follows [docs/RELEASING.md](RELEASING.md). Generative support replies, comment synchronization, notifications, and automatic GitHub escalation are not part of the current release path.
+The widget is MIT-licensed and validated as an external package; `@issuerelay/widget@0.1.0` is published on npm; later releases follow [docs/RELEASING.md](RELEASING.md). Generative support replies, comment synchronization, notifications, and automatic GitHub escalation are not part of the current release path.

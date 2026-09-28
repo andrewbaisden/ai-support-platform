@@ -17,7 +17,7 @@ The widget is the only published package. Everything else in the monorepo (`@ai-
 - Code: `"use client"` entry; imports only `react`, `react-dom`, `react/jsx-runtime`, `react-hook-form`. No `eval`/`new Function`, `process.env`, Node built-ins, platform packages, environment names, or key material.
 - Behaviour: installed from the tarball into a Vite app (strict CSP, TypeScript `skipLibCheck: false`) and a Next.js App Router app, both outside the workspace; Playwright submits a report in each, and the strict-CSP page must record no violations.
 
-## First release (0.1.0), once, by hand
+## First release (0.1.0), once, by hand (done 2026-09-28)
 
 npm trusted publishing can be configured only for a package that exists, so the first version is published from a maintainer machine.
 
@@ -46,7 +46,15 @@ Then:
 
 ## Verify from the registry
 
-In a clean directory outside the repository:
+Run the release checks against the published tarball itself. This downloads the version from npm, checks the registry's sha512 integrity hash, and repeats every tarball check and both external-consumer tests:
+
+```sh
+PACKAGE_CHECK_VERSION=0.1.0 pnpm test:package
+```
+
+To also confirm the published files match `main`, compare them with a fresh `pnpm pack` of the widget.
+
+A quick manual check also works, in a clean directory outside the repository:
 
 ```sh
 npm create vite@latest widget-check -- --template react-ts

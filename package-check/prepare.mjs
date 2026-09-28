@@ -1,7 +1,10 @@
 // Pack @issuerelay/widget exactly as npm would publish it, verify the
 // tarball, and install it into consumers outside the workspace. Playwright
 // (package-check/playwright.config.ts) then exercises the built consumers.
+// With PACKAGE_CHECK_VERSION=<version>, the same checks run against that
+// version downloaded from the npm registry instead of a local build.
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   mkdirSync,
@@ -9,6 +12,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,17 +34,38 @@ function fail(message) {
 rmSync(WORK, { recursive: true, force: true });
 mkdirSync(WORK, { recursive: true });
 
-// 1. Build and pack exactly what `npm publish` would upload.
-run("pnpm", ["--filter", "@ai-support-platform/support-contracts", "build"]);
-run("pnpm", ["--filter", "@issuerelay/widget", "build"]);
-run(
-  "pnpm",
-  ["pack", "--pack-destination", WORK],
-  join(ROOT, "packages/widget"),
-);
-const packed = readdirSync(WORK).find((name) => name.endsWith(".tgz"));
-if (!packed) fail("pnpm pack produced no tarball");
-renameSync(join(WORK, packed), TARBALL);
+const registryVersion = process.env.PACKAGE_CHECK_VERSION?.trim();
+if (registryVersion) {
+  // 1. Download the published tarball and prove it is what npm recorded.
+  const metadataUrl = `https://registry.npmjs.org/@issuerelay/widget/${encodeURIComponent(registryVersion)}`;
+  const metadata = await fetch(metadataUrl);
+  if (!metadata.ok) {
+    fail(
+      `registry has no @issuerelay/widget@${registryVersion} (${metadata.status})`,
+    );
+  }
+  const { dist } = await metadata.json();
+  const download = await fetch(dist.tarball);
+  if (!download.ok) fail(`tarball download failed (${download.status})`);
+  const bytes = Buffer.from(await download.arrayBuffer());
+  const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+  if (integrity !== dist.integrity) {
+    fail("downloaded tarball does not match the registry's integrity hash");
+  }
+  writeFileSync(TARBALL, bytes);
+} else {
+  // 1. Build and pack exactly what `npm publish` would upload.
+  run("pnpm", ["--filter", "@ai-support-platform/support-contracts", "build"]);
+  run("pnpm", ["--filter", "@issuerelay/widget", "build"]);
+  run(
+    "pnpm",
+    ["pack", "--pack-destination", WORK],
+    join(ROOT, "packages/widget"),
+  );
+  const packed = readdirSync(WORK).find((name) => name.endsWith(".tgz"));
+  if (!packed) fail("pnpm pack produced no tarball");
+  renameSync(join(WORK, packed), TARBALL);
+}
 
 // 2. The tarball contains only the public build and its documents.
 const files = output("tar", ["-tzf", TARBALL]).trim().split("\n").sort();
@@ -131,5 +156,5 @@ for (const file of readdirSync(assets).filter((name) => name.endsWith(".js"))) {
 }
 
 console.log(
-  `package-check: ${manifest.name}@${manifest.version} packed (${files.length} files) and built in ${WORK}`,
+  `package-check: ${manifest.name}@${manifest.version} ${registryVersion ? "downloaded from npm" : "packed"} (${files.length} files) and built in ${WORK}`,
 );

@@ -38,14 +38,24 @@ Deployment inputs (Vercel, Neon Postgres, Resend from the owner's domain) are re
 
 Exact counts are in the commit report for this phase.
 
-## Not done: owner actions
+## Publication
 
-1. **First publish of `0.1.0`.** npm needs the maintainer's login and 2FA. This machine is not logged in (`npm whoami` → `ENEEDAUTH`). Follow `docs/RELEASING.md` → *First release*.
-2. **After the first publish.** Configure the trusted publisher on npmjs.com (repository `andrewbaisden/issuerelay`, workflow `release-widget.yml`, environment `npm`), then install from the registry in a clean app to verify.
+- **`@issuerelay/widget@0.1.0` published by the owner (`andrewbaisden`) on 2026-09-28.** Registry metadata shows:
+  - 5 files and MIT license;
+  - only `react-hook-form` as a dependency, React 19 as peers;
+  - no devDependencies;
+  - no provenance attestation, as expected for the manual first publish.
+- **Verification from the registry.** `PACKAGE_CHECK_VERSION=0.1.0 pnpm test:package` passed. It downloaded the tarball (sha512 integrity matched the registry), repeated every tarball check, and passed both external consumers: strict-CSP Vite with 0 violations, and the Next.js App Router host.
+- **The published files match `main`.** All five are byte-identical to a fresh `pnpm pack` of the widget.
+- **Registry caching after publish.** The full package document (`/@issuerelay%2fwidget`) returned 404 from the registry CDN for a while after publishing, from cached pre-publish lookups, while `/@issuerelay/widget/latest` and search already showed 0.1.0. The registry check reads version metadata, so it is unaffected.
+
+## Remaining owner action
+
+Configure the trusted publisher on npmjs.com (repository `andrewbaisden/issuerelay`, workflow `release-widget.yml`, environment `npm`) before the next release; later releases then publish from `widget-v*` tags with provenance.
 
 ## Exact next phase starting point
 
-After the first publish and owner approval, the deployment phase covers:
+After owner approval, the deployment phase covers:
 
 - Vercel project for `apps/web`, with Neon Postgres from the Vercel Marketplace (`DATABASE_URL`, pooled connections sized with `DATABASE_POOL_MAX`);
 - production secrets (the startup guard enforces them);
