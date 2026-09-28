@@ -4,7 +4,7 @@ This document keeps the product definition and MVP boundaries that previously li
 
 ## Purpose and audience
 
-AI Support Platform gives a website or application a reusable support entry point and gives its operator a controlled path from visitor report to engineering work. The first dashboard serves one owner. Workspaces and projects separate tickets and repository connections so more sites can be added without sharing data.
+IssueRelay gives a website or application a reusable support entry point and gives its operator a controlled path from visitor report to engineering work. The first dashboard serves one owner. Workspaces and projects separate tickets and repository connections so more sites can be added without sharing data.
 
 ## MVP journey
 

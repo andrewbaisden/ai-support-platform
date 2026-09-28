@@ -1,6 +1,6 @@
 # Testing strategy
 
-Phase 8 adds webhook signature/policy unit tests, transactional PostgreSQL tests, and a signed close/reopen dashboard browser flow. Phase 10 adds Origin/role scope, callback-URL, production-config, security-header, shared-pool, retention, webhook-ordering, and post-link state-sync regressions. Phase 9 adds provenance-gate, reconcile-route, labels-event, and webhook-attribution regressions (see its handoff). The [live journey review](docs/reviews/phase-09-live-journey-test-review.md) adds a PostgreSQL journey suite for steps 5–15, a widget-to-webhook browser journey, webhook boundary specs, an isolated E2E environment, and the opt-in live GitHub runner. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
+Phase 8 adds webhook signature/policy unit tests, transactional PostgreSQL tests, and a signed close/reopen dashboard browser flow. Phases 11–12 add `pnpm test:package` (tarball contents, manifest, import allowlist, secret scan, and Playwright runs in external strict-CSP Vite and Next.js consumers) and a widget/contract parity test. Phase 10 adds Origin/role scope, callback-URL, production-config, security-header, shared-pool, retention, webhook-ordering, and post-link state-sync regressions. Phase 9 adds provenance-gate, reconcile-route, labels-event, and webhook-attribution regressions (see its handoff). The [live journey review](docs/reviews/phase-09-live-journey-test-review.md) adds a PostgreSQL journey suite for steps 5–15, a widget-to-webhook browser journey, webhook boundary specs, an isolated E2E environment, and the opt-in live GitHub runner. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
 
 ## Commands available now
 
@@ -18,6 +18,7 @@ pnpm github:escalate --ticket <uuid>
 pnpm build
 pnpm test:e2e
 git diff --check
+pnpm test:package
 pnpm db:retention
 LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository <owner/disposable-repo> [--classifier jev]
 ```

@@ -79,6 +79,10 @@ Escalation additionally requires model/manual provenance or an owner recommendat
 - Dependency audit (2026-09-28): one moderate advisory, `esbuild` ≤0.24.2 (GHSA-67mh-4wv8-2f99), reached only through `better-auth → drizzle-kit → @esbuild-kit/*`. It affects esbuild's development `serve` mode, which this project never runs; accepted and to be rechecked on dependency updates.
 - Still deferred to deployment: email verification with a delivery provider, hosting-level TLS/WAF, secret storage, and scheduled retention.
 
+## Published widget (Phases 11–12)
+
+The npm package contains only its built browser code, types, README, and license. `pnpm test:package` fails the release if the tarball carries extra files, private dependencies, `workspace:` ranges, devDependencies, Node built-ins, `process.env`, eval, platform package names, credential environment names, or key material, and if the consumer's bundle contains server code. Releases publish that verified tarball with npm provenance through trusted publishing (no stored token). The widget works under a strict CSP without `'unsafe-inline'` or `'unsafe-eval'`; hosts must allow the platform API origin in `connect-src`.
+
 ## Logs, retention, and incident response
 
 Log ticket IDs, project IDs, provider/operation status, webhook delivery IDs, latency, and safe error codes. Do not log raw messages, contact information, API keys, webhook bodies, provider prompts, or complete GitHub issue payloads. Set retention and deletion policy before live deployment, including how contact data and webhook diagnostics are removed. Rotate compromised credentials and public project keys, disable a project integration when needed, and reconcile remote issues after incidents or ambiguous API outcomes.

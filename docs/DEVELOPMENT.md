@@ -40,7 +40,7 @@ The stack uses Next.js 16 App Router, React 19, strict TypeScript, PostgreSQL 16
 
 ## Widget package
 
-Consumers import only `@ai-support-platform/widget`. The widget accepts a public `projectKey` and a `SupportSubmissionClient`; it also supports `position`, `theme`, `categories`, `title`, and `defaultOpen`. Styles are bundled into its Shadow DOM. `HttpSupportSubmissionClient` sends to the public API; a plain client object can keep UI work deterministic. The demo defaults to a local mock, can simulate failure, and marks mock references as fake. The package is not published to npm.
+Consumers import only `@issuerelay/widget` (see [the widget README](../packages/widget/README.md) and [releasing](RELEASING.md)). The widget accepts a public `projectKey` and a `SupportSubmissionClient`; it also supports `position`, `theme`, `categories`, `title`, and `defaultOpen`. Styles are bundled into its Shadow DOM. `HttpSupportSubmissionClient` sends to the public API; a plain client object can keep UI work deterministic. The demo defaults to a local mock, can simulate failure, and marks mock references as fake. The package is not published to npm.
 
 ## Public ingestion
 

@@ -110,7 +110,7 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** Arbitrary host CSS can change controls, typography, and box sizing. Shadow DOM provides strong style isolation with a small package boundary and no iframe messaging or host build requirements. An adapter makes failure/retry behavior testable without implementing the API ahead of its phase. A bundled style string makes external installation straightforward, though it may be revisited during package hardening if bundle size or content-security policies require an external CSS asset.
 
-**Consequence:** The host must allow inline styles under its Content Security Policy for this first version. Phase 11 must test a strict CSP consumer and choose a compatible stylesheet or nonce strategy before npm publication. The browser key remains public identification and the demo reference is fake. React and React DOM are peers; the package does not depend on Next.js, the database, or platform secrets.
+**Consequence:** The host must allow inline styles under its Content Security Policy for this first version. Phase 11 must test a strict CSP consumer and choose a compatible stylesheet or nonce strategy before npm publication. **Amendment (Phase 11):** styles are adopted as a constructable stylesheet, which strict `style-src` policies do not block, with a `<style>` fallback for browsers without `adoptedStyleSheets`; no nonce prop or separate CSS file is needed. A strict-CSP external consumer test enforces zero violations. The browser key remains public identification and the demo reference is fake. React and React DOM are peers; the package does not depend on Next.js, the database, or platform secrets.
 
 ## ADR-016 — Narrow support contracts and database-backed ingestion limits
 
@@ -118,7 +118,7 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** A small shared schema package keeps the widget/API contract identical without a generic types barrel or server imports in browser code. An in-memory limiter would misreport quota across serverless instances; a database row per project/hour is correct under concurrency and stores no client IP. Server-computed fingerprints keep retry comparison trustworthy because browser input is untrusted.
 
-**Consequence:** `packages/support-contracts` must stay limited to cross-boundary contracts; database, AI, and GitHub types stay out. Quota tuning is a policy change, not a schema change. The fingerprint version prefix allows future input changes without silent collisions.
+**Consequence:** `packages/support-contracts` must stay limited to cross-boundary contracts; database, AI, and GitHub types stay out. **Amendment (Phase 11):** the contracts expose a dependency-free `./constants` entry (categories, error codes, limits, patterns) that the widget bundles, while the Zod schemas built from those constants remain for the server. The browser widget no longer imports Zod: its eval-support probe is reported by strict-CSP hosts. A parity test proves widget checks and server schemas agree. Quota tuning is a policy change, not a schema change. The fingerprint version prefix allows future input changes without silent collisions.
 
 ## ADR-017 — Provider-neutral AI triage with deterministic policy
 
@@ -192,8 +192,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** The deployment phase schedules the command. Resolution time is approximated by `tickets.updated_at`, so later edits postpone (never hasten) erasure.
 
+## ADR-026 — Publish only the widget, from a verified tarball
+
+**Decision:** Publish `packages/widget` as `@issuerelay/widget` (MIT, npm org `issuerelay` owned by the personal `andrewbaisden` account), starting at `0.1.0`. Keep every other package private under `@ai-support-platform/*`. Publish exactly the tarball that `pnpm test:package` verified. The first version is published manually; later versions publish from `widget-v*` tags through npm trusted publishing (GitHub OIDC) with provenance, so no npm token is stored.
+
+**Why:** Consumers need only the browser widget; platform code is not a library. Verifying the tarball, rather than the workspace, is what catches private dependencies, missing files, and server code. Trusted publishing removes a long-lived secret and records where each release was built.
+
+**Consequence:** The product is branded IssueRelay (repository `andrewbaisden/issuerelay`). Internal package names are unchanged. Trusted publishing is configured after the first publish. Versions below 1.0 may change the API in minor releases.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.
 - The disposable repository `andrewbaisden/ai-support-platform-live-test` and GitHub App `ai-support-platform-dev` validated the live journey; never use the portfolio repository as a test target.
-- Hosting, managed PostgreSQL provider, and worker scheduling details are chosen before deployment. The application contracts above do not depend on a specific provider.
+- Deployment choices (owner, 2026-09-28): Vercel hosting, Neon PostgreSQL (Vercel Postgres is discontinued; install Neon from the Vercel Marketplace), and Resend email from the owner's domain for verification and password reset. They take effect in the deployment phase, which adds the email ADR, domain DNS (SPF/DKIM), scheduled retention, and production secrets. Worker scheduling is chosen with them.
