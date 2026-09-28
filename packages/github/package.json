@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:integration": "vitest run --config vitest.config.ts",
     "github:connect": "tsx src/cli/connect.ts",
-    "github:escalate": "tsx src/cli/escalate.ts"
+    "github:escalate": "tsx src/cli/escalate.ts",
+    "github:live-journey": "tsx src/cli/live-journey.ts"
   },
   "dependencies": {
     "@ai-support-platform/ai": "workspace:*",

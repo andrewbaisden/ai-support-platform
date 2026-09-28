@@ -25,6 +25,7 @@
     "test:github": "pnpm --filter @ai-support-platform/github test:integration",
     "github:connect": "pnpm --filter @ai-support-platform/github github:connect",
     "github:escalate": "pnpm --filter @ai-support-platform/github github:escalate",
+    "github:live-journey": "pnpm --filter @ai-support-platform/github github:live-journey",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @ai-support-platform/db db:generate",

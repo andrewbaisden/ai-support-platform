@@ -1,4 +1,109 @@
-import { expect, type Page } from "@playwright/test";
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import { type APIRequestContext, expect, type Page } from "@playwright/test";
+import { DEMO, E2E_OWNER, E2E_WEBHOOK_SECRET, PLATFORM } from "./e2e-env";
+
+export { DEMO, PLATFORM };
+
+/** Seeded mock escalation target for the Portfolio Demo project. */
+export const MOCK_REPOSITORY = {
+  id: 999,
+  installationId: 999,
+  owner: "example",
+  name: "disposable",
+};
+
+export async function login(page: Page) {
+  await page.goto(`${PLATFORM}/login`);
+  await page.getByLabel("Email").fill(E2E_OWNER.email);
+  await page.getByLabel("Password").fill(E2E_OWNER.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+}
+
+export async function openTicket(page: Page, reference: string) {
+  await page
+    .locator("li", { hasText: "Portfolio Demo" })
+    .getByRole("link", { name: "Open tickets" })
+    .click();
+  await page.getByLabel("Reference").fill(reference);
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("link", { name: reference }).click();
+  await page.waitForLoadState("networkidle");
+}
+
+/**
+ * Remote identity the mock tracker assigns to a ticket: derived from the
+ * opaque marker exactly as `packages/github/src/mock.ts` does.
+ */
+export function mockIssueFor(reference: string, ticketId: string) {
+  const nonce = createHash("sha256")
+    .update(ticketId)
+    .digest("hex")
+    .slice(0, 32);
+  const marker = `<!-- ai-support-ticket:${reference}:${nonce} -->`;
+  let hash = 0x811c9dc5;
+  for (const char of `${MOCK_REPOSITORY.owner}/${MOCK_REPOSITORY.name}/${marker}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return {
+    id: 100000 + (Math.abs(hash) % 800000),
+    number: 1 + (Math.abs(hash) % 4999),
+    marker,
+  };
+}
+
+export function issuesPayload(
+  action: "closed" | "reopened",
+  issue: { id: number; number: number },
+  overrides: { repositoryId?: number; installationId?: number } = {},
+) {
+  return JSON.stringify({
+    action,
+    issue: {
+      id: issue.id,
+      number: issue.number,
+      state: action === "closed" ? "closed" : "open",
+    },
+    repository: {
+      id: overrides.repositoryId ?? MOCK_REPOSITORY.id,
+      name: MOCK_REPOSITORY.name,
+      owner: { login: MOCK_REPOSITORY.owner },
+    },
+    installation: {
+      id: overrides.installationId ?? MOCK_REPOSITORY.installationId,
+    },
+  });
+}
+
+export function signature(raw: string, secret = E2E_WEBHOOK_SECRET) {
+  return `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`;
+}
+
+/** POST raw bytes to the real webhook route, signed like GitHub unless overridden. */
+export function deliverWebhook(
+  request: APIRequestContext,
+  raw: string,
+  headers: Record<string, string | undefined> = {},
+) {
+  const merged: Record<string, string | undefined> = {
+    "Content-Type": "application/json",
+    "X-GitHub-Delivery": randomUUID(),
+    "X-GitHub-Event": "issues",
+    "X-Hub-Signature-256": signature(raw),
+    ...headers,
+  };
+  return request.post(`${PLATFORM}/api/webhooks/github`, {
+    // A Buffer is sent byte-for-byte; a string body that is not valid JSON
+    // would be re-serialized by Playwright and no longer match its signature.
+    data: Buffer.from(raw),
+    headers: Object.fromEntries(
+      Object.entries(merged).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    ),
+  });
+}
 
 /**
  * Click a dashboard action button until its result settles. Clicks landing
