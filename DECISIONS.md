@@ -200,8 +200,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** The product is branded IssueRelay (repository `andrewbaisden/issuerelay`). Internal package names are unchanged. Trusted publishing is configured after the first publish. Versions below 1.0 may change the API in minor releases.
 
+## ADR-027 — Vercel, Neon, and Resend deployment
+
+**Decision:** Host `apps/web` on Vercel (project `issuerelay-web`, root `apps/web`) with Neon PostgreSQL from the Vercel Marketplace and Resend for account email. Production builds apply reviewed migrations over the direct connection before building; previews never migrate. The runtime uses Neon's pooled URL with `DATABASE_POOL_MAX=2`. Retention runs as a daily Vercel Cron authenticated by `CRON_SECRET`. Account email goes through an `EmailSender` port with a fetch-based Resend adapter and is enabled only when both `RESEND_API_KEY` and `EMAIL_FROM` are set; it then requires verified email to sign in and offers password reset. Production owners, workspaces, and projects come from `pnpm setup:production`, never the demo seed.
+
+**Why:** Vercel runs Next.js route handlers, crons, and HTTPS without extra infrastructure. Neon replaced Vercel Postgres. Vercel withholds sensitive variables from local pulls, so migrating inside production builds keeps credentials off developer machines and ships schema changes with their code. A port keeps the email provider replaceable and testable without network access.
+
+**Consequence:** Migrations must stay additive so rollbacks remain compatible. The GitHub App has one webhook URL, now production; local webhook tests need a separate development App. Preview deployments share production variables unless a Neon preview branch is configured.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.
 - The disposable repository `andrewbaisden/ai-support-platform-live-test` and GitHub App `ai-support-platform-dev` validated the live journey; never use the portfolio repository as a test target.
-- Deployment choices (owner, 2026-09-28): Vercel hosting, Neon PostgreSQL (Vercel Postgres is discontinued; install Neon from the Vercel Marketplace), and Resend email from the owner's domain for verification and password reset. They take effect in the deployment phase, which adds the email ADR, domain DNS (SPF/DKIM), scheduled retention, and production secrets. Worker scheduling is chosen with them.
+- Deployment (2026-09-28): Vercel, Neon, and Resend are in production (ADR-027). Still open: a custom domain, member invitations, and a Neon preview branch.

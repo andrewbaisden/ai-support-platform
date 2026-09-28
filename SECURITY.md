@@ -83,6 +83,10 @@ Escalation additionally requires model/manual provenance or an owner recommendat
 
 The npm package contains only its built browser code, types, README, and license. `pnpm test:package` fails the release if the tarball carries extra files, private dependencies, `workspace:` ranges, devDependencies, Node built-ins, `process.env`, eval, platform package names, credential environment names, or key material, and if the consumer's bundle contains server code. Releases publish that verified tarball with npm provenance through trusted publishing (no stored token). The widget works under a strict CSP without `'unsafe-inline'` or `'unsafe-eval'`; hosts must allow the platform API origin in `connect-src`.
 
+## Production deployment
+
+Production secrets live in Vercel as sensitive variables, which `vercel env pull` never releases; migrations therefore run inside production builds. The startup guard requires unique auth and webhook secrets, `https` `BETTER_AUTH_URL`, `CRON_SECRET`, and complete email settings. The retention cron compares `Bearer $CRON_SECRET` in constant time. With Resend configured, sign-in requires a verified email; operator-created owners are marked verified by `pnpm setup:production`, whose password is read from a hidden prompt and never passed as an argument. Reset emails contain only a greeting and a one-hour link, and a reset revokes other sessions. Local `.env` must never point at production; production access is loaded from the git-ignored `.env.production.local` for single deliberate commands.
+
 ## Logs, retention, and incident response
 
 Log ticket IDs, project IDs, provider/operation status, webhook delivery IDs, latency, and safe error codes. Do not log raw messages, contact information, API keys, webhook bodies, provider prompts, or complete GitHub issue payloads. Set retention and deletion policy before live deployment, including how contact data and webhook diagnostics are removed. Rotate compromised credentials and public project keys, disable a project integration when needed, and reconcile remote issues after incidents or ambiguous API outcomes.

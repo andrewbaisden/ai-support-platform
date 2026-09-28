@@ -20,6 +20,7 @@ pnpm test:e2e
 git diff --check
 pnpm test:package
 PACKAGE_CHECK_VERSION=0.1.0 pnpm test:package   # verify a published version
+# validate a deployment (see docs/DEPLOYMENT.md): live journey with --allow-remote-database
 pnpm db:retention
 LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository <owner/disposable-repo> [--classifier jev]
 ```

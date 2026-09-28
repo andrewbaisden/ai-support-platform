@@ -100,12 +100,12 @@ Live checks against a real GitHub App are opt-in and limited to disposable repos
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md), [decisions](DECISIONS.md), [security](SECURITY.md), [AI engineering](AI_ENGINEERING.md), [testing](TESTING.md)
-- [Product specification](docs/PRODUCT_SPEC.md), [roadmap](docs/ROADMAP.md), [development](docs/DEVELOPMENT.md), [releasing](docs/RELEASING.md)
+- [Product specification](docs/PRODUCT_SPEC.md), [roadmap](docs/ROADMAP.md), [development](docs/DEVELOPMENT.md), [deployment](docs/DEPLOYMENT.md), [releasing](docs/RELEASING.md)
 - [GitHub recovery runbook](docs/GITHUB_RECOVERY.md), [phase handoffs](docs/handoffs/), and [reviews](docs/reviews/)
 
 ## Status
 
-The full journey, from widget to GitHub and back, has been validated live against a disposable repository. The widget is published on npm as [`@issuerelay/widget`](https://www.npmjs.com/package/@issuerelay/widget) (0.1.0), and the published tarball passed the same external-consumer and strict-CSP checks as the build. Hosted deployment (Vercel with Neon Postgres, Resend email) is next on the [roadmap](docs/ROADMAP.md).
+The full journey, from widget to GitHub and back, has been validated live against a disposable repository. The widget is published on npm as [`@issuerelay/widget`](https://www.npmjs.com/package/@issuerelay/widget) (0.1.0), and the published tarball passed the same external-consumer and strict-CSP checks as the build. The platform is deployed on Vercel with Neon PostgreSQL and Resend email, and the full journey passed live against production. Installing the widget on a real site is next on the [roadmap](docs/ROADMAP.md).
 
 ## Responsible use
 
