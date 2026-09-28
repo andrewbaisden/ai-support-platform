@@ -14,7 +14,7 @@ import { getAuth } from "../auth";
  */
 function usage(): never {
   process.stdout.write(
-    `Usage: OWNER_EMAIL=<email> OWNER_PASSWORD=<16+ chars> \\
+    `Usage: OWNER_EMAIL=<email> [OWNER_PASSWORD=<16+ chars, new owner only>] \\
   pnpm setup:production --workspace "<name>" --project "<name>" --slug <slug> \\
   --origin https://example.com [--origin https://www.example.com] [--owner-name "<name>"] --yes
 
@@ -38,6 +38,10 @@ function argValues(name: string): string[] {
   );
 }
 
+// Owner credentials come only from this command's environment, never from
+// a .env file: a production password must not be picked up implicitly.
+const ownerEmail = process.env.OWNER_EMAIL?.trim();
+const ownerPassword = process.env.OWNER_PASSWORD;
 loadRootEnv();
 // Account emails are not needed here; never send one during setup.
 delete process.env.RESEND_API_KEY;
@@ -47,15 +51,9 @@ const workspaceName = argValue("--workspace");
 const projectName = argValue("--project");
 const slug = argValue("--slug");
 const origins = argValues("--origin");
-const ownerEmail = process.env.OWNER_EMAIL?.trim();
-const ownerPassword = process.env.OWNER_PASSWORD;
 if (!workspaceName || !projectName || !slug || origins.length === 0) usage();
-if (!ownerEmail || !ownerPassword) {
-  process.stderr.write("OWNER_EMAIL and OWNER_PASSWORD are required.\n");
-  process.exit(2);
-}
-if (ownerPassword.length < 16) {
-  process.stderr.write("OWNER_PASSWORD must be at least 16 characters.\n");
+if (!ownerEmail) {
+  process.stderr.write("OWNER_EMAIL is required.\n");
   process.exit(2);
 }
 for (const origin of origins) {
@@ -77,6 +75,12 @@ const support = createSupportRepository(db);
 try {
   let user = await support.findUserByEmail(ownerEmail);
   if (!user) {
+    // A password is needed only to create the owner; it is never changed.
+    if (!ownerPassword || ownerPassword.length < 16) {
+      throw new Error(
+        "OWNER_PASSWORD (16+ characters) is required to create a new owner.",
+      );
+    }
     const created = await getAuth().api.signUpEmail({
       body: {
         email: ownerEmail,

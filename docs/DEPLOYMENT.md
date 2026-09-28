@@ -48,7 +48,7 @@ Never set `GITHUB_ESCALATION_MOCK`, `AUTH_ALLOW_SIGNUP=true` (until invitations 
    unset DATABASE_URL OWNER_PASSWORD
    ```
 
-   The owner is created already verified. Re-running reuses existing rows and never changes a password. The output includes each project's public widget key.
+   The owner is created already verified. Re-running reuses existing rows and never changes a password; adding a project for an existing owner needs only `OWNER_EMAIL`. Owner credentials are read only from the command's environment, never from `.env`, so keep production passwords in a password manager rather than in local env files. The output includes each project's public widget key.
 4. Point the GitHub App webhook at `https://issuerelay-web.vercel.app/api/webhooks/github` with the same secret as `GITHUB_WEBHOOK_SECRET`, subscribed to **Issues**. Connect a project to a repository with `pnpm github:connect` using the production database URL.
 5. Email: in Resend, verify a sending subdomain by adding its DKIM TXT and send MX/SPF records at the domain's DNS host. No website or hosting is needed on the subdomain; with Netlify DNS, the record name is relative, e.g. `resend._domainkey.mail`. Set `RESEND_API_KEY` and `EMAIL_FROM` (`IssueRelay <no-reply@mail.<domain>>`) and redeploy. The login page then shows **Forgot your password?**, and sign-in requires a verified email.
 
