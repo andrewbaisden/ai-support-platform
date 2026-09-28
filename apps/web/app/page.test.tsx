@@ -6,7 +6,7 @@ describe("platform shell", () => {
   it("identifies the application", () => {
     render(<HomePage />);
     expect(
-      screen.getByRole("heading", { level: 1, name: "AI Support Platform" }),
+      screen.getByRole("heading", { level: 1, name: "IssueRelay" }),
     ).toBeTruthy();
   });
 });

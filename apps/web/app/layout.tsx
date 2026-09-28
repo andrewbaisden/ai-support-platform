@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Support Platform",
+  title: "IssueRelay",
   description:
     "Developer-focused support routing for websites and applications.",
 };

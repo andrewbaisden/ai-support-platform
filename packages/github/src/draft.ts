@@ -98,7 +98,7 @@ export function buildIssueDraft(input: DraftInput): IssueDraft {
     "",
     "## Support workflow",
     "",
-    "Reported through the AI Support Platform. Contact details are never published.",
+    "Reported through IssueRelay. Contact details are never published.",
     "",
     marker,
     "",

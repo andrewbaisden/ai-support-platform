@@ -1,0 +1,49 @@
+name: Release widget
+
+# Publishes @issuerelay/widget when a `widget-v<version>` tag is pushed.
+# Authentication uses npm trusted publishing (GitHub OIDC): no npm token is
+# stored. Configure the trusted publisher on npmjs.com for this repository
+# and this workflow file once the package exists (see docs/RELEASING.md).
+on:
+  push:
+    tags:
+      - "widget-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install --global npm@^11.5.1
+      - name: Tag matches package version
+        run: |
+          version=$(node -p "require('./packages/widget/package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "widget-v${version}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match widget version ${version}" >&2
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      # Packs the tarball, verifies it, and tests it in external consumers.
+      - run: pnpm test:package
+      - name: Publish the verified tarball
+        run: |
+          tarball=$(node -e "console.log(require('node:path').join(require('node:os').tmpdir(), 'issuerelay-package-check', 'issuerelay-widget.tgz'))")
+          npm publish "$tarball" --access public --provenance

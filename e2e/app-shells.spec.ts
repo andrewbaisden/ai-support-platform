@@ -3,9 +3,7 @@ import { DEMO } from "./e2e-env";
 
 test("platform and demo shells are reachable", async ({ page }) => {
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "AI Support Platform" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "IssueRelay" })).toBeVisible();
 
   await page.goto(`${DEMO}/`);
   await expect(

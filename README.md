@@ -1,36 +1,65 @@
-# AI Support Platform
+# IssueRelay
 
-> An embeddable support widget that turns website feedback into reviewable tickets and connects engineering bugs to GitHub.
+> Turn website feedback into reviewed support tickets, and confirmed bugs into GitHub issues that stay in sync.
 
-[![CI](https://github.com/andrewbaisden/ai-support-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewbaisden/ai-support-platform/actions/workflows/ci.yml)
-[![Release: not published](https://img.shields.io/badge/release-not%20published-lightgrey)](docs/ROADMAP.md)
-[![License: not specified](https://img.shields.io/badge/license-not%20specified-lightgrey)](#license)
+[![CI](https://github.com/andrewbaisden/issuerelay/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewbaisden/issuerelay/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@issuerelay/widget?label=%40issuerelay%2Fwidget)](https://www.npmjs.com/package/@issuerelay/widget)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-![The support widget open on the local demo website, showing question, bug, and feature request choices](docs/assets/support-widget-demo.png)
+![The IssueRelay support widget open on the demo website, showing question, bug, and feature request choices](docs/assets/support-widget-demo.png)
 
-AI Support Platform combines a reusable React widget, a private operator dashboard, AI-assisted triage, and a GitHub App integration. Visitors can ask questions, report bugs, or suggest features without leaving a website. The platform stores each request before any external service runs, then helps an operator review and route it. Eligible bugs can become GitHub issues after explicit confirmation; signed GitHub webhooks bring issue close and reopen state back to the ticket.
-
-The screenshot shows the real widget in the included demo app, using its local mock submission mode. The widget package is currently internal to this monorepo and has **not** been published to npm.
-
-## What it does
-
-- Embeds a React support widget with Shadow DOM styles, theme and position options, and no consumer Tailwind setup.
-- Stores conversations and tickets in PostgreSQL with idempotent submission and project-scoped access controls.
-- Uses a fixture classifier locally or opt-in Jev classification to recommend ticket type and severity; deterministic policy owns routing.
-- Gives operators an authenticated dashboard for ticket history, review decisions, and workflow changes.
-- Previews privacy-screened GitHub issues and creates them only after operator confirmation.
-- Verifies signed GitHub webhooks and synchronizes linked issue close/reopen state with the ticket.
+IssueRelay gives any website a support widget and gives you a private dashboard to handle what visitors send. Visitors ask a question, report a bug, or suggest a feature. Every report is stored before anything else runs. AI triage recommends a type and severity, and deterministic policy routes it. You review the result, and a confirmed bug becomes one GitHub issue. When the issue is closed or reopened on GitHub, the ticket follows.
 
 ```text
-Visitor → Widget → Ticket → Triage → Human review → GitHub issue
-                                                   ↘ signed webhook → Ticket update
+Visitor → @issuerelay/widget → IssueRelay API → Ticket → AI triage → Human review → GitHub issue
+                                                                    ↖ signed webhook ↙
 ```
 
-AI classification does not send automatic replies to visitors. GitHub escalation is not automatic.
+## Features
 
-## Getting started
+- **Embeddable widget.** A React component in a Shadow DOM: no Tailwind or CSS setup, no style clashes. It works under a strict Content Security Policy and in the Next.js App Router, with light, dark, or system themes.
+- **Durable intake.** PostgreSQL stores every report before AI or GitHub runs. Idempotent submission, per-project rate limits, and origin checks.
+- **Bounded AI triage.** [Jev](https://typesafe.ai) (or an offline fixture) recommends type and severity from the message only. Code owns routes, thresholds, and anything that is published.
+- **Human review.** An authenticated, workspace-scoped dashboard with classification history, overrides kept separate from AI decisions, and owner-only publishing.
+- **GitHub, carefully.** A GitHub App creates an issue only after an owner confirms a privacy-screened preview. Contact details never leave IssueRelay. Retries reconcile instead of duplicating.
+- **Two-way sync.** Signed webhooks close and reopen tickets. Replays, stale deliveries, and early closes are handled.
+- **Production guardrails.** Required same-origin requests, safe redirects, a startup check for unsafe secrets, security headers, and a retention command.
 
-Use Node.js 24, pnpm 11.5.3, and Docker with PostgreSQL 16 (or equivalent local PostgreSQL URLs). From the repository root:
+## Add the widget to a site
+
+```sh
+npm install @issuerelay/widget
+```
+
+```tsx
+"use client";
+
+import {
+  HttpSupportSubmissionClient,
+  SupportWidget,
+} from "@issuerelay/widget";
+
+const submissionClient = new HttpSupportSubmissionClient({
+  apiBaseUrl: "https://your-issuerelay-platform.example",
+});
+
+export function Support() {
+  return (
+    <SupportWidget
+      projectKey="pk_your_public_project_key_000000000"
+      submissionClient={submissionClient}
+      theme="system"
+      position="bottom-right"
+    />
+  );
+}
+```
+
+The project key identifies a project; it is not a secret. See the [widget README](packages/widget/README.md) for props, host requirements, and privacy details.
+
+## Run the platform locally
+
+Use Node.js 24, pnpm 11.5.3, and Docker (PostgreSQL 16):
 
 ```sh
 pnpm install --frozen-lockfile
@@ -41,54 +70,47 @@ pnpm db:seed
 pnpm dev
 ```
 
-Before seeding, set `SEED_OWNER_EMAIL` and `SEED_OWNER_PASSWORD` in the ignored `.env` file if you want to sign in to the dashboard. The example Better Auth secret and owner password are **local-only**; replace them with unique values before exposing the app through a public endpoint. Never commit `.env` or provider credentials.
+Set `SEED_OWNER_EMAIL` and `SEED_OWNER_PASSWORD` in `.env` before seeding to sign in to the dashboard. The example Better Auth secret and owner password are for local use only; replace them before exposing the app anywhere. Open the platform at `http://127.0.0.1:3000` and the demo website at `http://127.0.0.1:3001`. [Development setup](docs/DEVELOPMENT.md) covers AI triage with Jev, connecting a GitHub App, and webhooks.
 
-Open the platform at `http://127.0.0.1:3000` and the demo website at `http://127.0.0.1:3001`. The demo starts in mock mode and can be used without database credentials; real mode sends requests to the local API. See [development setup](docs/DEVELOPMENT.md) for environment options, service setup, and verification commands.
+## How it works
 
-## Using the widget in this monorepo
+| Step | What happens |
+| --- | --- |
+| Submit | The widget posts to the public API. The platform validates, rate-limits, and stores the conversation, message, and ticket in one transaction. |
+| Triage | Jev classifies the message into a bounded type and severity. Policy picks the route; only confident bugs backed by the model or an owner's recommendation are eligible for GitHub. |
+| Review | An operator inspects the report, the AI decision, and its history, and can override it with a recorded reason. |
+| Escalate | The owner previews the exact issue. A privacy gate blocks contact details and credentials. Confirmation creates one issue with an opaque marker. |
+| Sync | Signed GitHub webhooks move the ticket to resolved or back to queued, in order and exactly once. |
 
-The included demo imports the workspace package through its public export. A consumer supplies a public project key and a submission client:
+## Tech stack
 
-```tsx
-import {
-  HttpSupportSubmissionClient,
-  SupportWidget,
-} from "@ai-support-platform/widget";
+Next.js 16 · React 19 · TypeScript · PostgreSQL + Drizzle · Better Auth · Zod · Jev (TypeSafe SDK) · GitHub App (Octokit) · Vitest · Playwright · Biome · pnpm workspaces
 
-const submissionClient = new HttpSupportSubmissionClient({
-  apiBaseUrl: "https://your-platform.example",
-});
+## Testing
 
-export function Support() {
-  return (
-    <SupportWidget
-      projectKey="your-public-project-key"
-      submissionClient={submissionClient}
-      theme="system"
-      position="bottom-right"
-    />
-  );
-}
+```sh
+pnpm lint && pnpm typecheck && pnpm test   # unit and component
+pnpm test:db && pnpm test:ai && pnpm test:github   # PostgreSQL integration
+pnpm test:e2e       # browser journeys against an isolated database
+pnpm test:package   # packs the widget and tests it in external Vite and Next.js apps
 ```
 
-The project key identifies a project; it is not a secret or an authentication token. Database, Jev, GitHub, and webhook secrets remain server-side. External installation instructions will follow package validation and publication.
-
-## Status and releases
-
-The core submission, triage, human review, GitHub escalation, and webhook synchronization flow is implemented and covered by local tests. The complete flow has also been validated live against a GitHub App and a disposable repository, including signed close/reopen webhooks and redelivery ([review](docs/reviews/phase-09-live-journey-test-review.md)). There is no published release or npm package. [The roadmap](docs/ROADMAP.md) tracks the remaining validation and publication work.
+Live checks against a real GitHub App are opt-in and limited to disposable repositories. See [TESTING.md](TESTING.md).
 
 ## Documentation
 
-- [Development setup and commands](docs/DEVELOPMENT.md)
-- [Product specification](docs/PRODUCT_SPEC.md) and [roadmap](docs/ROADMAP.md)
-- [Architecture](ARCHITECTURE.md) and [architecture decisions](DECISIONS.md)
-- [AI engineering](AI_ENGINEERING.md), [security](SECURITY.md), and [testing](TESTING.md)
-- [Phase handoffs](docs/handoffs/), [Phase 8 review](docs/reviews/phase-08-grok-review.md), and [live journey review](docs/reviews/phase-09-live-journey-test-review.md)
+- [Architecture](ARCHITECTURE.md), [decisions](DECISIONS.md), [security](SECURITY.md), [AI engineering](AI_ENGINEERING.md), [testing](TESTING.md)
+- [Product specification](docs/PRODUCT_SPEC.md), [roadmap](docs/ROADMAP.md), [development](docs/DEVELOPMENT.md), [releasing](docs/RELEASING.md)
+- [GitHub recovery runbook](docs/GITHUB_RECOVERY.md), [phase handoffs](docs/handoffs/), and [reviews](docs/reviews/)
+
+## Status
+
+The full journey, from widget to GitHub and back, has been validated live against a disposable repository. The widget package `@issuerelay/widget@0.1.0` has passed external-consumer and strict-CSP checks and is ready for its first npm release. Hosted deployment (Vercel with Neon Postgres, Resend email) is next on the [roadmap](docs/ROADMAP.md).
 
 ## Responsible use
 
-Visitor messages and contact details are private support data. The system uses AI for bounded recommendations, keeps human decisions separate from classification history, and requires human confirmation before publishing an issue to GitHub. Confidence scores are not calibrated probabilities. Review issue previews before publication and use synthetic data for live integration tests. See [SECURITY.md](SECURITY.md) for trust boundaries and [AI_ENGINEERING.md](AI_ENGINEERING.md) for model limits.
+Visitor messages and contact details are private support data. AI makes bounded recommendations, human decisions stay separate from model history, and publishing to GitHub always needs an owner's confirmation. Confidence scores are not calibrated probabilities, and the privacy gate is a heuristic, so review every preview. Use synthetic data for live tests. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-No license has been selected or included yet. Reuse terms are unspecified; contact the owner before copying, modifying, or redistributing code. A license decision is required before external package publication.
+[MIT](LICENSE) © Andrew Baisden
