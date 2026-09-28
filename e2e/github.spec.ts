@@ -5,15 +5,16 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { PLATFORM } from "./e2e-env";
 import { clickCreateUntilSuccess, clickUntilSettled } from "./helpers";
 
-const WEB_API = "http://127.0.0.1:3000/api/v1/support/tickets";
+const WEB_API = `${PLATFORM}/api/v1/support/tickets`;
 const DEMO_PROJECT_KEY = `pk_${"A".repeat(32)}`;
 const OWNER_EMAIL = "owner@local.example";
 const OWNER_PASSWORD = "change-me-local-dev-01";
 
 async function login(page: Page) {
-  await page.goto("http://127.0.0.1:3000/login");
+  await page.goto(`${PLATFORM}/login`);
   await page.getByLabel("Email").fill(OWNER_EMAIL);
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -168,7 +169,7 @@ test("signed issue close and reopen update the dashboard", async ({
       installation: { id: 999 },
     });
     const signature = `sha256=${createHmac("sha256", "local-e2e-webhook-secret").update(raw).digest("hex")}`;
-    return request.post("http://127.0.0.1:3000/api/webhooks/github", {
+    return request.post(`${PLATFORM}/api/webhooks/github`, {
       data: raw,
       headers: {
         "Content-Type": "application/json",

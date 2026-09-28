@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { DEMO } from "./e2e-env";
 
 test("demo visitor submits a bug and sees a confirmation", async ({ page }) => {
-  await page.goto("http://127.0.0.1:3001/");
+  await page.goto(`${DEMO}/`);
   await page.getByRole("button", { name: "Open support" }).click();
   await expect(page.getByRole("dialog")).toHaveCSS(
     "background-color",
@@ -20,7 +21,7 @@ test("mobile dark widget fits the viewport and supports failure retry", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto("http://127.0.0.1:3001/");
+  await page.goto(`${DEMO}/`);
   await page.getByLabel("Theme").selectOption("dark");
   await page.getByLabel("Simulate submission failure").check();
   await page.getByRole("button", { name: "Open support" }).click();

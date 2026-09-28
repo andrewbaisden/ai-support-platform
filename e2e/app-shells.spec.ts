@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { DEMO } from "./e2e-env";
 
 test("platform and demo shells are reachable", async ({ page }) => {
   await page.goto("/");
@@ -6,7 +7,7 @@ test("platform and demo shells are reachable", async ({ page }) => {
     page.getByRole("heading", { name: "AI Support Platform" }),
   ).toBeVisible();
 
-  await page.goto("http://127.0.0.1:3001/");
+  await page.goto(`${DEMO}/`);
   await expect(
     page.getByRole("heading", { name: "Demo Consumer" }),
   ).toBeVisible();

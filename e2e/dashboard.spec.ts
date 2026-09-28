@@ -5,16 +5,17 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { PLATFORM } from "./e2e-env";
 import { clickResolveUntilDone, clickUntilSettled } from "./helpers";
 
-const WEB_API = "http://127.0.0.1:3000/api/v1/support/tickets";
+const WEB_API = `${PLATFORM}/api/v1/support/tickets`;
 const DEMO_PROJECT_KEY = `pk_${"A".repeat(32)}`;
 // Local development seed credentials only; see .env.example.
 const OWNER_EMAIL = "owner@local.example";
 const OWNER_PASSWORD = "change-me-local-dev-01";
 
 async function login(page: Page) {
-  await page.goto("http://127.0.0.1:3000/login");
+  await page.goto(`${PLATFORM}/login`);
   await page.getByLabel("Email").fill(OWNER_EMAIL);
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -109,6 +110,6 @@ test("operator resolves a ticket and sees the timeline entry", async ({
 test("unauthenticated dashboard access redirects to login", async ({
   page,
 }) => {
-  await page.goto("http://127.0.0.1:3000/dashboard");
+  await page.goto(`${PLATFORM}/dashboard`);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { DEMO, PLATFORM } from "./e2e-env";
 
-const WEB_API = "http://127.0.0.1:3000/api/v1/support/tickets";
+const WEB_API = `${PLATFORM}/api/v1/support/tickets`;
 const DEMO_PROJECT_KEY = `pk_${"A".repeat(32)}`;
 const MESSAGE = "The projects page is blank in Safari dark mode.";
 
@@ -11,7 +12,7 @@ const MESSAGE = "The projects page is blank in Safari dark mode.";
 test("demo visitor submits through the real ingestion API and sees a ticket reference", async ({
   page,
 }) => {
-  await page.goto("http://127.0.0.1:3001/");
+  await page.goto(`${DEMO}/`);
   await page.getByLabel("Submission mode").selectOption("real");
   await page.getByRole("button", { name: "Open support" }).click();
   await page.getByRole("button", { name: /Report a bug/ }).click();
