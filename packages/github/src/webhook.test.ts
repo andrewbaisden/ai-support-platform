@@ -31,6 +31,9 @@ function fakeRepository(link: WebhookLink | undefined) {
   const events: string[] = [];
   const statuses: string[] = [];
   let issueState = link?.linkStatus;
+  let remoteUpdatedAt = link?.remoteUpdatedAt;
+  let ticketStatus = link?.ticketStatus;
+  let latestStatusEvent = link?.latestStatusEvent;
   const seen = new Set<string>();
   const repository: WebhookRepository = {
     withDelivery: async (delivery, callback) => {
@@ -38,12 +41,21 @@ function fakeRepository(link: WebhookLink | undefined) {
       const result = await callback({
         findLink: async () =>
           link
-            ? { ...link, linkStatus: issueState ?? link.linkStatus }
+            ? {
+                ...link,
+                linkStatus: issueState ?? link.linkStatus,
+                ticketStatus: ticketStatus ?? link.ticketStatus,
+                ...(latestStatusEvent ? { latestStatusEvent } : {}),
+                ...(remoteUpdatedAt ? { remoteUpdatedAt } : {}),
+              }
             : undefined,
-        setIssueState: async (_link, state) => {
+        setIssueState: async (_link, state, updatedAt) => {
           issueState = state;
+          if (updatedAt) remoteUpdatedAt = updatedAt;
         },
         setTicketStatus: async (_link, status, event) => {
+          ticketStatus = status;
+          latestStatusEvent = event;
           statuses.push(status);
           events.push(event);
         },
@@ -61,6 +73,9 @@ function fakeRepository(link: WebhookLink | undefined) {
     statuses,
     get issueState() {
       return issueState;
+    },
+    get remoteUpdatedAt() {
+      return remoteUpdatedAt;
     },
   };
 }
@@ -159,6 +174,49 @@ describe("GitHub webhook boundary", () => {
       "ticket_resolved_from_github",
     ]);
     expect(fake.statuses).toEqual(["resolved"]);
+  });
+
+  it("ignores a delayed older event instead of rolling state back", async () => {
+    const github = fakeRepository(fixtureLink());
+    const send = (action: "closed" | "reopened", updatedAt: string) =>
+      processGitHubWebhook(github.repository, {
+        delivery: delivery(),
+        action,
+        installationId: "10",
+        issue: {
+          ...issue,
+          issueState: action === "closed" ? "closed" : "open",
+          updatedAt,
+        },
+      });
+    expect(await send("closed", "2026-09-28T10:00:05Z")).toEqual({
+      outcome: "processed",
+      detail: "closed",
+    });
+    // A reopen from before that close arrives late: stale, no mutation.
+    expect(await send("reopened", "2026-09-28T10:00:01Z")).toEqual({
+      outcome: "ignored",
+      reason: "stale_event",
+    });
+    expect(github.issueState).toBe("closed");
+    expect(github.statuses).toEqual(["resolved"]);
+    // GitHub timestamps have one-second precision: an equal time cannot be
+    // ordered, so arrival order wins.
+    expect(await send("reopened", "2026-09-28T10:00:05Z")).toMatchObject({
+      detail: "reopened",
+    });
+    // A newer event for the current state advances the watermark only.
+    expect(await send("reopened", "2026-09-28T10:00:09Z")).toEqual({
+      outcome: "processed",
+      detail: "already_current",
+    });
+    expect(github.remoteUpdatedAt).toBe("2026-09-28T10:00:09Z");
+    expect(await send("closed", "2026-09-28T10:00:07Z")).toEqual({
+      outcome: "ignored",
+      reason: "stale_event",
+    });
+    expect(github.issueState).toBe("open");
+    expect(github.statuses).toEqual(["resolved", "queued"]);
   });
 
   it("reopens only GitHub-resolved tickets and preserves manual resolutions", async () => {

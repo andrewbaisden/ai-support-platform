@@ -18,6 +18,7 @@ import {
   type EscalationRepository,
   type EscalationTicket,
   escalateTicketToGitHub,
+  webhookTransactionFromScope,
 } from "./index";
 
 loadRootEnv();
@@ -127,6 +128,10 @@ const port: EscalationRepository = {
       ...(input.summary ? { summary: input.summary } : {}),
     });
   },
+  withIssueScope: (process) =>
+    support.withGitHubIssueSync((scope) =>
+      process(webhookTransactionFromScope(scope)),
+    ),
 };
 
 async function setupProject() {

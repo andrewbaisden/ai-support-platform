@@ -184,6 +184,36 @@ export function createTrackerFactory(options: {
             throw toGithubError(error);
           }
         },
+        async getIssueState(input) {
+          try {
+            const response = await withTimeout(
+              "issue state",
+              octokit.request(
+                "GET /repos/{owner}/{repo}/issues/{issue_number}",
+                {
+                  owner: input.owner,
+                  repo: input.repo,
+                  issue_number: input.number,
+                },
+              ),
+            );
+            const state = response.data.state;
+            if (state !== "open" && state !== "closed") {
+              throw new GithubError(
+                "GITHUB_INVALID_RESPONSE",
+                "Issue state failed validation",
+              );
+            }
+            return {
+              state,
+              ...(typeof response.data.updated_at === "string"
+                ? { updatedAt: response.data.updated_at }
+                : {}),
+            };
+          } catch (error) {
+            throw toGithubError(error);
+          }
+        },
         async listLabels(input) {
           try {
             const response = await withTimeout(

@@ -534,6 +534,8 @@ export const githubIssues = pgTable(
       .$type<(typeof githubIssueStatuses)[number]>()
       .default("pending")
       .notNull(),
+    /** Newest GitHub `updated_at` applied; orders delayed webhook deliveries. */
+    remoteUpdatedAt: timestamp("remote_updated_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

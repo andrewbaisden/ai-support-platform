@@ -3,6 +3,7 @@ import {
   apiError,
   apiOk,
   requireTicketScope,
+  scopeErrorResponse,
   ticketRefParamsSchema,
 } from "../../../../../../lib/dashboard-api";
 import { canTransition } from "../../../../../../lib/ticket-transitions";
@@ -31,13 +32,10 @@ export async function POST(
   ) {
     return apiError("INVALID_REQUEST", 400);
   }
-  const scoped = await requireTicketScope(request, body.data.projectId);
-  if ("error" in scoped) {
-    return apiError(
-      scoped.error,
-      scoped.error === "UNAUTHENTICATED" ? 401 : 404,
-    );
-  }
+  const scoped = await requireTicketScope(request, body.data.projectId, {
+    requireOwner: true,
+  });
+  if ("error" in scoped) return scopeErrorResponse(scoped.error);
   const ticket = await scoped.repository.getTicketForProject(
     scoped.access.workspaceId,
     body.data.projectId,

@@ -57,12 +57,15 @@ export function GitHubSection({
   projectId,
   ticketId,
   initial,
+  canPublish,
   issueState,
   repository,
 }: {
   projectId: string;
   ticketId: string;
   initial: EscalationPreview;
+  /** Publishing to GitHub is owner-only; members see the preview only. */
+  canPublish: boolean;
   issueState: string | null;
   repository: string | null;
 }) {
@@ -119,14 +122,16 @@ export function GitHubSection({
             shortly if nothing is found, then follow the GitHub recovery
             runbook.
           </p>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void create()}
-            className="mt-2 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending ? "Checking…" : "Check for existing issue"}
-          </button>
+          {canPublish && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void create()}
+              className="mt-2 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {pending ? "Checking…" : "Check for existing issue"}
+            </button>
+          )}
         </div>
       )}
       {initial.state === "in-progress" && (
@@ -167,14 +172,20 @@ export function GitHubSection({
               (intersected with repository labels at creation)
             </p>
           </details>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void create()}
-            className="mt-3 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending ? "Creating issue…" : "Create GitHub issue"}
-          </button>
+          {canPublish ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void create()}
+              className="mt-3 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {pending ? "Creating issue…" : "Create GitHub issue"}
+            </button>
+          ) : (
+            <p role="status" className="mt-3 text-slate-600">
+              Only workspace owners can publish issues to GitHub.
+            </p>
+          )}
         </div>
       )}
       {result && !result.ok && (

@@ -7,6 +7,11 @@ import { GithubError } from "./errors";
 import { type SubmittedContact, screenReport } from "./privacy";
 import { type EscalationPolicy, provenanceBlock } from "./provenance";
 import type { CreatedIssue, IssueTrackerClient, TrackerFactory } from "./types";
+import {
+  applyIssueEvent,
+  type ProcessedOutcome,
+  type WebhookTransaction,
+} from "./webhook-service";
 
 export const ESCALATION_EVENTS = {
   requested: "github_escalation_requested",
@@ -104,6 +109,10 @@ export interface EscalationRepository {
     type: string;
     summary?: string;
   }): Promise<void>;
+  /** Run a locked issue-link transaction for remote state applied outside webhooks. */
+  withIssueScope(
+    process: (tx: WebhookTransaction) => Promise<ProcessedOutcome>,
+  ): Promise<ProcessedOutcome>;
 }
 
 export type EscalationOutcome =
@@ -321,6 +330,36 @@ export async function escalateTicketToGitHub(
       type: event,
       summary,
     });
+    await syncRemoteState(issue);
+  };
+
+  // A close within seconds of creation can be delivered before the link
+  // exists and is then ignored as unknown. Read the state once the link is
+  // confirmed and apply it through the webhook policy. Best effort: the
+  // link stands, and later webhooks remain the primary sync path.
+  const syncRemoteState = async (issue: CreatedIssue) => {
+    try {
+      const remote = await tracker.getIssueState({
+        owner: integration.repositoryOwner,
+        repo: integration.repositoryName,
+        number: issue.number,
+      });
+      await repository.withIssueScope((tx) =>
+        applyIssueEvent(tx, {
+          action: remote.state === "closed" ? "closed" : "reopened",
+          installationId: integration.installationId,
+          issue: {
+            repositoryId: integration.repositoryId,
+            githubIssueId: String(issue.id),
+            issueNumber: issue.number,
+            issueState: remote.state,
+            ...(remote.updatedAt ? { updatedAt: remote.updatedAt } : {}),
+          },
+        }),
+      );
+    } catch {
+      // Ignored by design; see above.
+    }
   };
 
   try {

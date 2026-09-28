@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const PROJECT_ID = "20000000-0000-4000-8000-000000000001";
+const scopeOptions: Array<{ requireOwner?: boolean } | undefined> = [];
 const WORKSPACE_ID = "10000000-0000-4000-8000-000000000001";
 const TICKET_ID = "30000000-0000-4000-8000-000000000001";
 
@@ -63,11 +64,18 @@ vi.mock("../../../../../../lib/dashboard-api", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("../../../../../../lib/dashboard-api")
   >()),
-  requireTicketScope: async () => ({
-    userId: "owner",
-    access: { workspaceId: WORKSPACE_ID, workspaceName: "W", role: "owner" },
-    repository,
-  }),
+  requireTicketScope: async (
+    _request: Request,
+    _projectId: string,
+    options?: { requireOwner?: boolean },
+  ) => {
+    scopeOptions.push(options);
+    return {
+      userId: "owner",
+      access: { workspaceId: WORKSPACE_ID, workspaceName: "W", role: "owner" },
+      repository,
+    };
+  },
 }));
 
 const { POST } = await import("./route");
@@ -133,5 +141,17 @@ describe("dashboard GitHub route reconciliation", () => {
     expect(repository.markGitHubIssueStatus).toHaveBeenCalledWith(
       expect.objectContaining({ status: "needs_reconciliation" }),
     );
+  });
+});
+
+describe("dashboard GitHub route roles", () => {
+  it("lets members preview but requires the owner role to publish", async () => {
+    scopeOptions.length = 0;
+    await call("preview");
+    await call("create");
+    expect(scopeOptions).toEqual([
+      { requireOwner: false },
+      { requireOwner: true },
+    ]);
   });
 });

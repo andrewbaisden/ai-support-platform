@@ -45,6 +45,8 @@ function mockIssueFor(
 export function createMockTrackerFactory(
   scenarios: MockScenario[] = [{ kind: "success" }],
 ): TrackerFactory & {
+  /** Remote state reported for created issues, or a failed state read. */
+  remoteState: { state: "open" | "closed"; updatedAt?: string } | "unavailable";
   created: Array<{
     owner: string;
     repo: string;
@@ -63,6 +65,13 @@ export function createMockTrackerFactory(
   let calls = 0;
   const next = (): MockScenario =>
     scenarios[Math.min(calls, scenarios.length - 1)] ?? { kind: "success" };
+  const factory: ReturnType<typeof createMockTrackerFactory> = {
+    remoteState: { state: "open" },
+    async forInstallation() {
+      return client;
+    },
+    created,
+  };
   const client: IssueTrackerClient = {
     async verifyRepository() {},
     async createIssue(input) {
@@ -133,14 +142,15 @@ export function createMockTrackerFactory(
         ? mockIssueFor(input.owner, input.repo, input.marker)
         : undefined;
     },
+    async getIssueState() {
+      if (factory.remoteState === "unavailable") {
+        throw new GithubError("GITHUB_UNAVAILABLE", "Mock state outage");
+      }
+      return factory.remoteState;
+    },
     async listLabels() {
       return ["bug", "severity:high", "severity:critical", "help wanted"];
     },
   };
-  return {
-    async forInstallation() {
-      return client;
-    },
-    created,
-  };
+  return factory;
 }

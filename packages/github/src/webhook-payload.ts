@@ -13,6 +13,8 @@ export const issuesWebhookSchema = z.object({
     number: z.number().int().positive(),
     state: z.enum(["open", "closed"]),
     html_url: z.string().url().max(500).optional(),
+    // Remote ordering hint; malformed values are dropped, not trusted.
+    updated_at: z.iso.datetime().optional().catch(undefined),
   }),
   repository: z.object({
     id: githubId,

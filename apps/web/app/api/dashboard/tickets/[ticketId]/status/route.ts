@@ -4,6 +4,7 @@ import {
   apiError,
   apiOk,
   requireTicketScope,
+  scopeErrorResponse,
   ticketRefParamsSchema,
 } from "../../../../../../lib/dashboard-api";
 import {
@@ -31,12 +32,7 @@ export async function POST(
   );
   if (!body.success) return apiError("INVALID_REQUEST", 400);
   const scoped = await requireTicketScope(request, body.data.projectId);
-  if ("error" in scoped) {
-    return apiError(
-      scoped.error,
-      scoped.error === "UNAUTHENTICATED" ? 401 : 404,
-    );
-  }
+  if ("error" in scoped) return scopeErrorResponse(scoped.error);
   const ticket = await scoped.repository.getTicketForProject(
     scoped.access.workspaceId,
     body.data.projectId,

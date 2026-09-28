@@ -36,6 +36,12 @@ export interface IssueTrackerClient {
     marker: string;
     repositoryId: string;
   }): Promise<CreatedIssue | undefined>;
+  /** Current remote state of one issue in the verified repository. */
+  getIssueState(input: {
+    owner: string;
+    repo: string;
+    number: number;
+  }): Promise<{ state: "open" | "closed"; updatedAt?: string }>;
   /** Repository label names for allowlist intersection. */
   listLabels(input: { owner: string; repo: string }): Promise<string[]>;
 }

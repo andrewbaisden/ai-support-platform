@@ -44,6 +44,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
   const detail = await getTicketDetail(user.id, projectId, ticketId);
   if (!detail) notFound();
   const {
+    access,
     project,
     ticket,
     message,
@@ -340,6 +341,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
             projectId={project.id}
             ticketId={ticket.id}
             initial={githubPreview}
+            canPublish={access.role === "owner"}
             issueState={link?.status ?? null}
             repository={
               integration
@@ -376,11 +378,17 @@ export default async function TicketDetailPage({ params }: PageProps) {
             <div>
               <h4 className="text-sm font-semibold">Review decision</h4>
               <div className="mt-2">
-                <OverrideForm
-                  projectId={project.id}
-                  ticketId={ticket.id}
-                  currentRoute={ticket.route}
-                />
+                {access.role === "owner" ? (
+                  <OverrideForm
+                    projectId={project.id}
+                    ticketId={ticket.id}
+                    currentRoute={ticket.route}
+                  />
+                ) : (
+                  <p role="status" className="text-sm text-slate-600">
+                    Only workspace owners can record review decisions.
+                  </p>
+                )}
               </div>
             </div>
           </div>

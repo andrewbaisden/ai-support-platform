@@ -9,7 +9,7 @@ import { z } from "zod";
 import { getSupportRepository } from "./support-runtime";
 
 export type TicketScope =
-  | { error: "FORBIDDEN" | "UNAUTHENTICATED" | "NOT_FOUND" }
+  | { error: ScopeError }
   | {
       userId: string;
       access: {
@@ -22,12 +22,12 @@ export type TicketScope =
       >;
     };
 
-/**
- * Session + workspace gate for dashboard mutation routes. Verifies the
- * request Origin against the host for cookie-based CSRF protection and
- * resolves membership for the ticket's workspace. Returns safe error codes;
- * never leaks tenant existence beyond 404/403 equivalence with the pages.
- */
+export type ScopeError =
+  | "FORBIDDEN"
+  | "UNAUTHENTICATED"
+  | "NOT_FOUND"
+  | "OWNER_REQUIRED";
+
 export type DashboardApiError =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
@@ -35,24 +35,33 @@ export type DashboardApiError =
   | "INVALID_REQUEST"
   | "INVALID_TRANSITION";
 
+function isSameOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return false;
+  try {
+    const url = new URL(origin);
+    return url.host === host && /^https?:$/.test(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Session + workspace gate for dashboard mutation routes. Every mutation
+ * must carry a same-origin `Origin` header (browsers send it on fetch POSTs),
+ * so cookie-authenticated requests cannot be forged cross-site even if the
+ * cookie policy changes. Resolves membership for the ticket's workspace and,
+ * for publishing actions, requires the owner role. Returns safe error codes;
+ * never leaks tenant existence beyond 404 equivalence with the pages.
+ */
 export async function requireTicketScope(
   request: Request,
   projectId: string,
+  options: { requireOwner?: boolean } = {},
 ): Promise<TicketScope> {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  if (origin) {
-    let allowed = false;
-    try {
-      allowed =
-        new URL(origin).host === host &&
-        new URL(origin).protocol.startsWith("http");
-    } catch {
-      allowed = false;
-    }
-    if (!allowed) {
-      return { error: "FORBIDDEN" as const };
-    }
+  if (!isSameOrigin(request)) {
+    return { error: "FORBIDDEN" as const };
   }
   let userId: string;
   try {
@@ -71,7 +80,17 @@ export async function requireTicketScope(
     context.workspaceId,
   ).catch(() => undefined);
   if (!access) return { error: "NOT_FOUND" as const };
+  if (options.requireOwner && access.role !== "owner") {
+    return { error: "OWNER_REQUIRED" as const };
+  }
   return { userId, access, repository };
+}
+
+/** Safe HTTP mapping: members learn only that the owner role is needed. */
+export function scopeErrorResponse(error: ScopeError) {
+  const status =
+    error === "UNAUTHENTICATED" ? 401 : error === "OWNER_REQUIRED" ? 403 : 404;
+  return apiError(error, status);
 }
 
 export function apiError(error: DashboardApiError | string, status: number) {

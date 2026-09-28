@@ -1,4 +1,9 @@
-export { createDatabase, type Database } from "./client";
+export {
+  createDatabase,
+  type Database,
+  getSharedDatabase,
+  poolSizeFromEnv,
+} from "./client";
 export {
   loadRootEnv,
   requireDatabaseUrl,
@@ -19,6 +24,7 @@ export {
 } from "./inputs";
 export {
   createSupportRepository,
+  type IssueLinkScope,
   SubmissionConflictError,
   ticketReference,
 } from "./repository";

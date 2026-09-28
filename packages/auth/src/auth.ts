@@ -1,6 +1,6 @@
 import {
   accounts,
-  createDatabase,
+  getSharedDatabase,
   loadRootEnv,
   requireDatabaseUrl,
   sessions,
@@ -26,7 +26,7 @@ function createAuth() {
       "BETTER_AUTH_SECRET is required. See .env.example for local setup.",
     );
   }
-  const { db } = createDatabase(requireDatabaseUrl("DATABASE_URL"));
+  const { db } = getSharedDatabase(requireDatabaseUrl("DATABASE_URL"));
   return betterAuth({
     baseURL: process.env.BETTER_AUTH_URL,
     secret,

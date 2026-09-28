@@ -1,6 +1,7 @@
 import { getAuth } from "@ai-support-platform/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeCallbackUrl } from "../../lib/callback-url";
 import LoginForm from "./login-form";
 
 interface PageProps {
@@ -12,8 +13,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
   const raw = Array.isArray(params.callbackUrl)
     ? params.callbackUrl[0]
     : params.callbackUrl;
-  const callbackUrl =
-    raw?.startsWith("/") === true && !raw.startsWith("//") ? raw : "/dashboard";
+  const callbackUrl = safeCallbackUrl(raw);
   try {
     const session = await getAuth().api.getSession({
       headers: await headers(),

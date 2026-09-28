@@ -3,13 +3,7 @@
 import { authClient } from "@ai-support-platform/auth/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-function safeCallbackUrl(value: string | null): string {
-  if (value?.startsWith("/") === true && !value.startsWith("//")) {
-    return value;
-  }
-  return "/dashboard";
-}
+import { safeCallbackUrl } from "../../lib/callback-url";
 
 export default function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();

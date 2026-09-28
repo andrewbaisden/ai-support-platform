@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { parseServerEnv } from "./env";
+import { securityHeaders } from "./lib/security-headers";
 
 parseServerEnv(process.env);
 
@@ -7,6 +8,11 @@ parseServerEnv(process.env);
 // can run beside a regular `pnpm dev` of the same app.
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  async headers() {
+    return [
+      { source: "/:path*", headers: securityHeaders(process.env.NODE_ENV) },
+    ];
+  },
 };
 
 export default nextConfig;

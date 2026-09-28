@@ -33,6 +33,10 @@ function createFakeRepository(overrides: Partial<EscalationRepository> = {}) {
     recordEvent: vi.fn(async (input: { type: string }) => {
       events.push(input.type);
     }),
+    withIssueScope: vi.fn(async () => ({
+      outcome: "processed" as const,
+      detail: "already_current",
+    })),
     ...overrides,
   };
   return { repository, events };
@@ -82,6 +86,8 @@ describe("escalateTicketToGitHub", () => {
     expect(factory.created[0]?.body).not.toContain("ada@example");
     expect(events).toContain(ESCALATION_EVENTS.requested);
     expect(events).toContain(ESCALATION_EVENTS.created);
+    // The confirmed link is followed by exactly one remote state sync.
+    expect(repository.withIssueScope).toHaveBeenCalledTimes(1);
   });
 
   it("returns existing linkage without creating", async () => {

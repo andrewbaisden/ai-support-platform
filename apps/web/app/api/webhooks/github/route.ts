@@ -4,6 +4,7 @@ import {
   processGitHubWebhook,
   verifyWebhookSignature,
   type WebhookRepository,
+  webhookTransactionFromScope,
 } from "@ai-support-platform/github";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -60,44 +61,7 @@ function webhookRepository(): WebhookRepository {
             ? { githubIssueId: BigInt(delivery.githubIssueId) }
             : {}),
         },
-        async (scope) =>
-          process({
-            findLink: async (ref) => {
-              const row = await scope.findLink({
-                repositoryId: BigInt(ref.repositoryId),
-                githubIssueId: BigInt(ref.githubIssueId),
-              });
-              return row
-                ? {
-                    ticketId: row.ticketId,
-                    projectId: row.projectId,
-                    workspaceId: row.workspaceId,
-                    issueNumber: row.issueNumber,
-                    installationId: row.installationId.toString(),
-                    integrationStatus: row.integrationStatus,
-                    linkStatus: row.linkStatus,
-                    ticketStatus: row.ticketStatus,
-                    ticketRoute: row.ticketRoute,
-                    ...(row.latestStatusEvent
-                      ? { latestStatusEvent: row.latestStatusEvent }
-                      : {}),
-                  }
-                : undefined;
-            },
-            setIssueState: async (link, state) => {
-              const row = await scope.findLink({
-                repositoryId: BigInt(delivery.repositoryId ?? "0"),
-                githubIssueId: BigInt(delivery.githubIssueId ?? "0"),
-              });
-              if (!row || row.ticketId !== link.ticketId)
-                throw new Error("Webhook link changed");
-              await scope.setIssueState(row.issueId, state);
-            },
-            setTicketStatus: (link, status, eventType, summary) =>
-              scope.setTicketStatus(link.ticketId, status, eventType, summary),
-            recordEvent: (link, type, summary) =>
-              scope.recordEvent(link.projectId, link.ticketId, type, summary),
-          }),
+        (scope) => process(webhookTransactionFromScope(scope)),
       ),
   };
 }
@@ -197,6 +161,9 @@ export async function POST(request: Request) {
         githubIssueId: String(issue.issue.id),
         issueNumber: issue.issue.number,
         issueState: issue.issue.state,
+        ...(issue.issue.updated_at
+          ? { updatedAt: issue.issue.updated_at }
+          : {}),
       },
     });
     console.info("github_webhook", {

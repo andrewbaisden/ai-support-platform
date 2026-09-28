@@ -22,6 +22,7 @@ export {
   type EscalationTicket,
   escalateTicketToGitHub,
 } from "./escalation-service";
+export { webhookTransactionFromScope } from "./link-scope";
 export { createMockTrackerFactory, type MockScenario } from "./mock";
 export {
   type EscalationPreview,
@@ -53,6 +54,8 @@ export {
   issuesWebhookSchema,
 } from "./webhook-payload";
 export {
+  applyIssueEvent,
+  type ProcessedOutcome,
   processGitHubWebhook,
   type RemoteIssueRef,
   WEBHOOK_EVENTS,

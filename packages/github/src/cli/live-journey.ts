@@ -20,6 +20,7 @@ import {
   type EscalationTicket,
   escalateTicketToGitHub,
 } from "../escalation-service";
+import { webhookTransactionFromScope } from "../link-scope";
 import { previewEscalation } from "../preview";
 
 /**
@@ -195,6 +196,10 @@ const port: EscalationRepository = {
       ...(input.summary ? { summary: input.summary } : {}),
     });
   },
+  withIssueScope: (process) =>
+    support.withGitHubIssueSync((scope) =>
+      process(webhookTransactionFromScope(scope)),
+    ),
 };
 
 async function escalationInput(

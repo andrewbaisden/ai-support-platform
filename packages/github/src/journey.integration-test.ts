@@ -29,6 +29,7 @@ import {
   previewEscalation,
   processGitHubWebhook,
   type WebhookRepository,
+  webhookTransactionFromScope,
 } from "./index";
 
 /**
@@ -159,6 +160,10 @@ const escalationPort: EscalationRepository = {
       ...(input.summary ? { summary: input.summary } : {}),
     });
   },
+  withIssueScope: (process) =>
+    support.withGitHubIssueSync((scope) =>
+      process(webhookTransactionFromScope(scope)),
+    ),
 };
 
 /** Mirrors the webhook route's port over the delivery transaction. */
@@ -179,44 +184,7 @@ const webhookPort: WebhookRepository = {
           ? { githubIssueId: BigInt(delivery.githubIssueId) }
           : {}),
       },
-      (scope) =>
-        process({
-          findLink: async (ref) => {
-            const row = await scope.findLink({
-              repositoryId: BigInt(ref.repositoryId),
-              githubIssueId: BigInt(ref.githubIssueId),
-            });
-            return row
-              ? {
-                  ticketId: row.ticketId,
-                  projectId: row.projectId,
-                  workspaceId: row.workspaceId,
-                  issueNumber: row.issueNumber,
-                  installationId: row.installationId.toString(),
-                  integrationStatus: row.integrationStatus,
-                  linkStatus: row.linkStatus,
-                  ticketStatus: row.ticketStatus,
-                  ticketRoute: row.ticketRoute,
-                  ...(row.latestStatusEvent
-                    ? { latestStatusEvent: row.latestStatusEvent }
-                    : {}),
-                }
-              : undefined;
-          },
-          setIssueState: async (link, state) => {
-            const row = await scope.findLink({
-              repositoryId: BigInt(delivery.repositoryId ?? "0"),
-              githubIssueId: BigInt(delivery.githubIssueId ?? "0"),
-            });
-            if (!row || row.ticketId !== link.ticketId)
-              throw new Error("Webhook link changed");
-            await scope.setIssueState(row.issueId, state);
-          },
-          setTicketStatus: (link, status, eventType, summary) =>
-            scope.setTicketStatus(link.ticketId, status, eventType, summary),
-          recordEvent: (link, type, summary) =>
-            scope.recordEvent(link.projectId, link.ticketId, type, summary),
-        }),
+      (scope) => process(webhookTransactionFromScope(scope)),
     ),
 };
 
@@ -228,6 +196,7 @@ function issueEvent(
     repositoryId?: number;
     installationId?: number;
     issueNumber?: number;
+    updatedAt?: string;
   } = {},
 ) {
   const repositoryId = String(overrides.repositoryId ?? REPOSITORY_ID);
@@ -248,6 +217,7 @@ function issueEvent(
       githubIssueId: String(issue.id),
       issueNumber: overrides.issueNumber ?? issue.number,
       issueState: action === "closed" ? "closed" : "open",
+      ...(overrides.updatedAt ? { updatedAt: overrides.updatedAt } : {}),
     },
   });
 }
@@ -1116,5 +1086,105 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
         )
       ).map((row) => row.source),
     ).toEqual(["fixture"]);
+  });
+
+  it("keeps a delayed older delivery from rolling back newer GitHub state", async () => {
+    const { workspace, project, ticket, issue } = await linkedBug("ordering");
+    expect(
+      await issueEvent("closed", issue, { updatedAt: "2026-09-28T10:00:05Z" }),
+    ).toEqual({ outcome: "processed", detail: "closed" });
+    // Sent before the close, delivered after it.
+    expect(
+      await issueEvent("reopened", issue, {
+        updatedAt: "2026-09-28T10:00:01Z",
+      }),
+    ).toEqual({ outcome: "ignored", reason: "stale_event" });
+    expect(
+      await support.getTicketForProject(workspace.id, project.id, ticket.id),
+    ).toMatchObject({ status: "resolved" });
+    const link = await support.getGitHubIssueForTicket(
+      workspace.id,
+      project.id,
+      ticket.id,
+    );
+    expect(link?.status).toBe("closed");
+    expect(link?.remoteUpdatedAt?.toISOString()).toBe(
+      "2026-09-28T10:00:05.000Z",
+    );
+    expect(
+      (await eventTypes(project.id, ticket.id)).filter((type) =>
+        type.startsWith("github_issue_re"),
+      ),
+    ).toEqual([]);
+    const stale = await db.execute(
+      sql`SELECT failure_code FROM webhook_events WHERE status = 'ignored'`,
+    );
+    expect(stale.rows).toEqual([{ failure_code: "stale_event" }]);
+  });
+
+  it("applies a close that happened before the link was confirmed", async () => {
+    const { workspace, project } = await setupProject("early-close");
+    const ticket = await submit(project.id, SAFARI_BUG);
+    await triage(workspace.id, ticket, new FixtureTicketClassifier());
+    // GitHub already reports the new issue closed (closed within seconds of
+    // creation, so its webhook arrived before the link existed).
+    const factory = createMockTrackerFactory();
+    factory.remoteState = {
+      state: "closed",
+      updatedAt: "2026-09-28T11:00:00Z",
+    };
+    const outcome = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
+      repository: escalationPort,
+      trackers: factory,
+      ticket: await escalationInput(workspace.id, ticket),
+    });
+    expect(outcome.outcome).toBe("created");
+    expect(
+      await support.getGitHubIssueForTicket(
+        workspace.id,
+        project.id,
+        ticket.id,
+      ),
+    ).toMatchObject({ status: "closed" });
+    expect(
+      (await support.getTicketForProject(workspace.id, project.id, ticket.id))
+        ?.status,
+    ).toBe("resolved");
+    expect((await eventTypes(project.id, ticket.id)).slice(-3)).toEqual([
+      "github_issue_created",
+      "github_issue_closed",
+      "ticket_resolved_from_github",
+    ]);
+    // A state read is not a webhook delivery.
+    const deliveries = await db.execute(
+      sql`SELECT count(*)::int AS n FROM webhook_events`,
+    );
+    expect(deliveries.rows[0]).toEqual({ n: 0 });
+  });
+
+  it("keeps the created link when the post-create state check fails", async () => {
+    const { workspace, project } = await setupProject("state-check-fails");
+    const ticket = await submit(project.id, SAFARI_BUG);
+    await triage(workspace.id, ticket, new FixtureTicketClassifier());
+    const factory = createMockTrackerFactory();
+    factory.remoteState = "unavailable";
+    const outcome = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
+      repository: escalationPort,
+      trackers: factory,
+      ticket: await escalationInput(workspace.id, ticket),
+    });
+    expect(outcome.outcome).toBe("created");
+    expect(
+      await support.getGitHubIssueForTicket(
+        workspace.id,
+        project.id,
+        ticket.id,
+      ),
+    ).toMatchObject({ status: "open" });
+    expect((await eventTypes(project.id, ticket.id)).at(-1)).toBe(
+      "github_issue_created",
+    );
   });
 });

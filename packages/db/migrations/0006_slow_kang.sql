@@ -1,0 +1,1 @@
+ALTER TABLE "github_issues" ADD COLUMN "remote_updated_at" timestamp with time zone;

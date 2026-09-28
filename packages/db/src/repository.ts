@@ -1,4 +1,15 @@
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./client";
 import {
@@ -55,6 +66,47 @@ function isUniqueViolation(error: unknown): boolean {
   return "cause" in error && isUniqueViolation(error.cause);
 }
 
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Locked view of one confirmed GitHub issue link and its ticket. */
+export interface IssueLinkScope {
+  findLink: (ref: { repositoryId: bigint; githubIssueId: bigint }) => Promise<
+    | {
+        issueId: string;
+        ticketId: string;
+        projectId: string;
+        workspaceId: string;
+        issueNumber: number;
+        installationId: bigint;
+        integrationStatus: string;
+        linkStatus: string;
+        ticketStatus: TicketStatus;
+        ticketRoute: TicketRoute | null;
+        latestStatusEvent?: string;
+        /** Newest GitHub `updated_at` applied to this link. */
+        remoteUpdatedAt?: Date;
+      }
+    | undefined
+  >;
+  setIssueState: (
+    issueId: string,
+    status: "open" | "closed",
+    remoteUpdatedAt?: Date,
+  ) => Promise<void>;
+  setTicketStatus: (
+    ticketId: string,
+    status: "queued" | "resolved",
+    eventType: string,
+    summary: string,
+  ) => Promise<void>;
+  recordEvent: (
+    projectId: string,
+    ticketId: string,
+    type: string,
+    summary: string,
+  ) => Promise<void>;
+}
+
 export function createSupportRepository(db: Database) {
   async function getSubmission(projectId: string, submissionKey: string) {
     const [ticket] = await db
@@ -98,6 +150,142 @@ export function createSupportRepository(db: Database) {
       )
       .limit(1);
     return row?.ticket;
+  }
+
+  /** Row-locked issue/ticket scope shared by webhook and remote-state sync. */
+  function issueLinkScope(
+    tx: Transaction,
+    onLink: (projectId: string) => void = () => {},
+  ): IssueLinkScope {
+    return {
+      findLink: async (ref: {
+        repositoryId: bigint;
+        githubIssueId: bigint;
+      }) => {
+        const [row] = await tx
+          .select({
+            issueId: githubIssues.id,
+            ticketId: tickets.id,
+            projectId: projects.id,
+            workspaceId: projects.workspaceId,
+            issueNumber: githubIssues.issueNumber,
+            installationId: githubIntegrations.installationId,
+            integrationStatus: githubIntegrations.status,
+            linkStatus: githubIssues.status,
+            ticketStatus: tickets.status,
+            ticketRoute: tickets.route,
+            remoteUpdatedAt: githubIssues.remoteUpdatedAt,
+          })
+          .from(githubIssues)
+          .innerJoin(
+            tickets,
+            and(
+              eq(githubIssues.ticketId, tickets.id),
+              eq(githubIssues.projectId, tickets.projectId),
+            ),
+          )
+          .innerJoin(projects, eq(tickets.projectId, projects.id))
+          .innerJoin(
+            githubIntegrations,
+            and(
+              eq(githubIssues.integrationId, githubIntegrations.id),
+              eq(githubIssues.projectId, githubIntegrations.projectId),
+              eq(githubIssues.repositoryId, githubIntegrations.repositoryId),
+            ),
+          )
+          .where(
+            and(
+              eq(githubIssues.repositoryId, ref.repositoryId),
+              eq(githubIssues.githubIssueId, ref.githubIssueId),
+            ),
+          )
+          .for("update", { of: [githubIssues, tickets] })
+          .limit(1);
+        if (!row || row.issueNumber === null) return undefined;
+        onLink(row.projectId);
+        const statusEvents = await tx
+          .select({ type: ticketEvents.type })
+          .from(ticketEvents)
+          .where(
+            and(
+              eq(ticketEvents.projectId, row.projectId),
+              eq(ticketEvents.ticketId, row.ticketId),
+              inArray(ticketEvents.type, [
+                "classified",
+                "resolved",
+                "reopened",
+                "released_from_quarantine",
+                "ticket_resolved_from_github",
+                "ticket_reopened_from_github",
+              ]),
+            ),
+          )
+          .orderBy(desc(ticketEvents.eventNumber))
+          .limit(1);
+        const { remoteUpdatedAt, ...rest } = row;
+        return {
+          ...rest,
+          issueNumber: row.issueNumber,
+          latestStatusEvent: statusEvents[0]?.type,
+          ...(remoteUpdatedAt ? { remoteUpdatedAt } : {}),
+        };
+      },
+      setIssueState: async (
+        issueId: string,
+        status: "open" | "closed",
+        remoteUpdatedAt?: Date,
+      ) => {
+        await tx
+          .update(githubIssues)
+          .set({
+            status,
+            updatedAt: new Date(),
+            ...(remoteUpdatedAt ? { remoteUpdatedAt } : {}),
+          })
+          .where(eq(githubIssues.id, issueId));
+      },
+      setTicketStatus: async (
+        ticketId: string,
+        status: "queued" | "resolved",
+        eventType: string,
+        summary: string,
+      ) => {
+        const [current] = await tx
+          .select({ status: tickets.status })
+          .from(tickets)
+          .where(eq(tickets.id, ticketId))
+          .limit(1);
+        if (!current || !canTransition(current.status, status))
+          throw new Error("Invalid webhook ticket transition");
+        await tx
+          .update(tickets)
+          .set({ status, updatedAt: new Date() })
+          .where(eq(tickets.id, ticketId));
+        const [ticket] = await tx
+          .select({ projectId: tickets.projectId })
+          .from(tickets)
+          .where(eq(tickets.id, ticketId))
+          .limit(1);
+        if (!ticket)
+          throw new Error("Ticket missing during webhook processing");
+        await tx.insert(ticketEvents).values({
+          projectId: ticket.projectId,
+          ticketId,
+          type: eventType,
+          summary,
+        });
+      },
+      recordEvent: async (
+        projectId: string,
+        ticketId: string,
+        type: string,
+        summary: string,
+      ) => {
+        await tx
+          .insert(ticketEvents)
+          .values({ projectId, ticketId, type, summary });
+      },
+    };
   }
 
   return {
@@ -775,43 +963,7 @@ export function createSupportRepository(db: Database) {
         installationId?: bigint;
         githubIssueId?: bigint;
       },
-      process: (scope: {
-        findLink: (ref: {
-          repositoryId: bigint;
-          githubIssueId: bigint;
-        }) => Promise<
-          | {
-              issueId: string;
-              ticketId: string;
-              projectId: string;
-              workspaceId: string;
-              issueNumber: number;
-              installationId: bigint;
-              integrationStatus: string;
-              linkStatus: string;
-              ticketStatus: TicketStatus;
-              ticketRoute: TicketRoute | null;
-              latestStatusEvent?: string;
-            }
-          | undefined
-        >;
-        setIssueState: (
-          issueId: string,
-          status: "open" | "closed",
-        ) => Promise<void>;
-        setTicketStatus: (
-          ticketId: string,
-          status: "queued" | "resolved",
-          eventType: string,
-          summary: string,
-        ) => Promise<void>;
-        recordEvent: (
-          projectId: string,
-          ticketId: string,
-          type: string,
-          summary: string,
-        ) => Promise<void>;
-      }) => Promise<T>,
+      process: (scope: IssueLinkScope) => Promise<T>,
     ): Promise<T | { outcome: "duplicate" }> {
       const valid = z
         .object({
@@ -836,127 +988,9 @@ export function createSupportRepository(db: Database) {
         if (!inserted) return { outcome: "duplicate" as const };
         // Project context of the verified link, recorded only if processed.
         let linkedProjectId: string | undefined;
-        const scope = {
-          findLink: async (ref: {
-            repositoryId: bigint;
-            githubIssueId: bigint;
-          }) => {
-            const [row] = await tx
-              .select({
-                issueId: githubIssues.id,
-                ticketId: tickets.id,
-                projectId: projects.id,
-                workspaceId: projects.workspaceId,
-                issueNumber: githubIssues.issueNumber,
-                installationId: githubIntegrations.installationId,
-                integrationStatus: githubIntegrations.status,
-                linkStatus: githubIssues.status,
-                ticketStatus: tickets.status,
-                ticketRoute: tickets.route,
-              })
-              .from(githubIssues)
-              .innerJoin(
-                tickets,
-                and(
-                  eq(githubIssues.ticketId, tickets.id),
-                  eq(githubIssues.projectId, tickets.projectId),
-                ),
-              )
-              .innerJoin(projects, eq(tickets.projectId, projects.id))
-              .innerJoin(
-                githubIntegrations,
-                and(
-                  eq(githubIssues.integrationId, githubIntegrations.id),
-                  eq(githubIssues.projectId, githubIntegrations.projectId),
-                  eq(
-                    githubIssues.repositoryId,
-                    githubIntegrations.repositoryId,
-                  ),
-                ),
-              )
-              .where(
-                and(
-                  eq(githubIssues.repositoryId, ref.repositoryId),
-                  eq(githubIssues.githubIssueId, ref.githubIssueId),
-                ),
-              )
-              .for("update", { of: [githubIssues, tickets] })
-              .limit(1);
-            if (!row || row.issueNumber === null) return undefined;
-            linkedProjectId = row.projectId;
-            const statusEvents = await tx
-              .select({ type: ticketEvents.type })
-              .from(ticketEvents)
-              .where(
-                and(
-                  eq(ticketEvents.projectId, row.projectId),
-                  eq(ticketEvents.ticketId, row.ticketId),
-                  inArray(ticketEvents.type, [
-                    "classified",
-                    "resolved",
-                    "reopened",
-                    "released_from_quarantine",
-                    "ticket_resolved_from_github",
-                    "ticket_reopened_from_github",
-                  ]),
-                ),
-              )
-              .orderBy(desc(ticketEvents.eventNumber))
-              .limit(1);
-            return {
-              ...row,
-              issueNumber: row.issueNumber,
-              latestStatusEvent: statusEvents[0]?.type,
-            };
-          },
-          setIssueState: async (issueId: string, status: "open" | "closed") => {
-            await tx
-              .update(githubIssues)
-              .set({ status, updatedAt: new Date() })
-              .where(eq(githubIssues.id, issueId));
-          },
-          setTicketStatus: async (
-            ticketId: string,
-            status: "queued" | "resolved",
-            eventType: string,
-            summary: string,
-          ) => {
-            const [current] = await tx
-              .select({ status: tickets.status })
-              .from(tickets)
-              .where(eq(tickets.id, ticketId))
-              .limit(1);
-            if (!current || !canTransition(current.status, status))
-              throw new Error("Invalid webhook ticket transition");
-            await tx
-              .update(tickets)
-              .set({ status, updatedAt: new Date() })
-              .where(eq(tickets.id, ticketId));
-            const [ticket] = await tx
-              .select({ projectId: tickets.projectId })
-              .from(tickets)
-              .where(eq(tickets.id, ticketId))
-              .limit(1);
-            if (!ticket)
-              throw new Error("Ticket missing during webhook processing");
-            await tx.insert(ticketEvents).values({
-              projectId: ticket.projectId,
-              ticketId,
-              type: eventType,
-              summary,
-            });
-          },
-          recordEvent: async (
-            projectId: string,
-            ticketId: string,
-            type: string,
-            summary: string,
-          ) => {
-            await tx
-              .insert(ticketEvents)
-              .values({ projectId, ticketId, type, summary });
-          },
-        };
+        const scope = issueLinkScope(tx, (projectId) => {
+          linkedProjectId = projectId;
+        });
         const result = await process(scope);
         await tx
           .update(webhookEvents)
@@ -975,6 +1009,105 @@ export function createSupportRepository(db: Database) {
           .where(eq(webhookEvents.id, inserted.id));
         return result;
       });
+    },
+
+    /**
+     * Retention: erase visitor name/email from conversations whose ticket
+     * has been resolved since before the cutoff. The report, classification,
+     * and PII-free audit trail stay; a `contact_details_erased` event records
+     * the erasure. `tickets.updated_at` is the resolution time proxy, so any
+     * later ticket change postpones erasure (never hastens it).
+     */
+    async eraseResolvedContactDetails(input: {
+      resolvedBefore: Date;
+      dryRun?: boolean;
+    }): Promise<{ tickets: number }> {
+      const cutoff = z.date().parse(input.resolvedBefore);
+      return db.transaction(async (tx) => {
+        const due = await tx
+          .select({
+            ticketId: tickets.id,
+            projectId: tickets.projectId,
+            conversationId: tickets.conversationId,
+          })
+          .from(tickets)
+          .innerJoin(
+            conversations,
+            and(
+              eq(conversations.id, tickets.conversationId),
+              eq(conversations.projectId, tickets.projectId),
+            ),
+          )
+          .where(
+            and(
+              eq(tickets.status, "resolved"),
+              lt(tickets.updatedAt, cutoff),
+              or(
+                isNotNull(conversations.visitorName),
+                isNotNull(conversations.visitorEmail),
+              ),
+            ),
+          )
+          .for("update", { of: conversations });
+        if (input.dryRun || due.length === 0) return { tickets: due.length };
+        await tx
+          .update(conversations)
+          .set({ visitorName: null, visitorEmail: null, updatedAt: new Date() })
+          .where(
+            inArray(
+              conversations.id,
+              due.map((row) => row.conversationId),
+            ),
+          );
+        await tx.insert(ticketEvents).values(
+          due.map((row) => ({
+            projectId: row.projectId,
+            ticketId: row.ticketId,
+            type: "contact_details_erased",
+            summary: "Visitor contact details erased by retention policy.",
+          })),
+        );
+        return { tickets: due.length };
+      });
+    },
+
+    /**
+     * Retention: delete terminal webhook delivery records received before
+     * the cutoff. Deleting a delivery ID lets a redelivery of it process
+     * again, so callers keep the cutoff well beyond GitHub's redelivery
+     * window.
+     */
+    async deleteWebhookDeliveries(input: {
+      receivedBefore: Date;
+      dryRun?: boolean;
+    }): Promise<{ deliveries: number }> {
+      const cutoff = z.date().parse(input.receivedBefore);
+      const condition = and(
+        inArray(webhookEvents.status, ["processed", "ignored"]),
+        lt(webhookEvents.receivedAt, cutoff),
+      );
+      if (input.dryRun) {
+        const [row] = await db
+          .select({ total: count() })
+          .from(webhookEvents)
+          .where(condition);
+        return { deliveries: row?.total ?? 0 };
+      }
+      const deleted = await db
+        .delete(webhookEvents)
+        .where(condition)
+        .returning({ id: webhookEvents.id });
+      return { deliveries: deleted.length };
+    },
+
+    /**
+     * Apply a remote issue state read from GitHub (not a webhook) under the
+     * same row locks and rules, without recording a webhook delivery.
+     */
+    async withGitHubIssueSync<T extends { outcome: "processed" | "ignored" }>(
+      process: (scope: IssueLinkScope) => Promise<T>,
+    ): Promise<T> {
+      return db.transaction((tx) => process(issueLinkScope(tx)));
     },
 
     async listTicketEvents(projectId: string, ticketId: string) {

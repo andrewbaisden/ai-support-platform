@@ -146,7 +146,7 @@ test("the webhook endpoint rejects forged or malformed deliveries without touchi
   await expect(github).toContainText("Closed");
 });
 
-test("the dashboard GitHub action requires a session, same origin, and workspace access", async ({
+test("the dashboard GitHub action requires a session, same Origin, and workspace access", async ({
   page,
   playwright,
 }) => {
@@ -154,11 +154,21 @@ test("the dashboard GitHub action requires a session, same origin, and workspace
   const endpoint = `${PLATFORM}/api/dashboard/tickets/${randomUUID()}/github`;
   const unauthenticated = await anonymous.post(endpoint, {
     data: { projectId: PORTFOLIO_PROJECT, action: "create" },
+    headers: { Origin: PLATFORM },
   });
   expect(unauthenticated.status()).toBe(401);
   expect(await unauthenticated.json()).toEqual({
     ok: false,
     error: "UNAUTHENTICATED",
+  });
+  // Without an Origin header the request is refused before any session lookup.
+  const originlessAnonymous = await anonymous.post(endpoint, {
+    data: { projectId: PORTFOLIO_PROJECT, action: "create" },
+  });
+  expect(originlessAnonymous.status()).toBe(404);
+  expect(await originlessAnonymous.json()).toEqual({
+    ok: false,
+    error: "FORBIDDEN",
   });
   await anonymous.dispose();
 
@@ -170,15 +180,25 @@ test("the dashboard GitHub action requires a session, same origin, and workspace
   expect(forged.status()).toBe(404);
   expect(await forged.json()).toEqual({ ok: false, error: "FORBIDDEN" });
 
+  // Mutations must carry a same-origin Origin header, even with a session.
+  const originless = await page.request.post(endpoint, {
+    data: { projectId: PORTFOLIO_PROJECT, action: "preview" },
+  });
+  expect(originless.status()).toBe(404);
+  expect(await originless.json()).toEqual({ ok: false, error: "FORBIDDEN" });
+
   // An unknown or foreign project is indistinguishable from a missing one.
+  const sameOrigin = { Origin: PLATFORM };
   const foreign = await page.request.post(endpoint, {
     data: { projectId: randomUUID(), action: "preview" },
+    headers: sameOrigin,
   });
   expect(foreign.status()).toBe(404);
   expect(await foreign.json()).toEqual({ ok: false, error: "NOT_FOUND" });
 
   const missingTicket = await page.request.post(endpoint, {
     data: { projectId: PORTFOLIO_PROJECT, action: "preview" },
+    headers: sameOrigin,
   });
   expect(missingTicket.status()).toBe(404);
   expect(await missingTicket.json()).toEqual({ ok: false, error: "NOT_FOUND" });

@@ -10,6 +10,7 @@ import {
   type EscalationRepository,
   escalateTicketToGitHub,
 } from "../escalation-service";
+import { webhookTransactionFromScope } from "../link-scope";
 import { createMockTrackerFactory } from "../mock";
 
 function usage(): never {
@@ -124,6 +125,10 @@ const port: EscalationRepository = {
       ...(input.summary ? { summary: input.summary } : {}),
     });
   },
+  withIssueScope: (process) =>
+    support.withGitHubIssueSync((scope) =>
+      process(webhookTransactionFromScope(scope)),
+    ),
 };
 
 try {

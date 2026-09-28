@@ -4,12 +4,14 @@ import {
   escalateTicketToGitHub,
   previewEscalation,
   type TrackerFactory,
+  webhookTransactionFromScope,
 } from "@ai-support-platform/github";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   apiError,
   requireTicketScope,
+  scopeErrorResponse,
   ticketRefParamsSchema,
 } from "../../../../../../lib/dashboard-api";
 import {
@@ -99,6 +101,10 @@ function escalationPort(): EscalationRepository {
         ...(input.summary ? { summary: input.summary } : {}),
       });
     },
+    withIssueScope: (process) =>
+      repository.withGitHubIssueSync((scope) =>
+        process(webhookTransactionFromScope(scope)),
+      ),
   };
 }
 
@@ -170,13 +176,10 @@ async function handleGithubPost(
     await request.json().catch(() => undefined),
   );
   if (!body.success) return apiError("INVALID_REQUEST", 400);
-  const scoped = await requireTicketScope(request, body.data.projectId);
-  if ("error" in scoped) {
-    return apiError(
-      scoped.error,
-      scoped.error === "UNAUTHENTICATED" ? 401 : 404,
-    );
-  }
+  const scoped = await requireTicketScope(request, body.data.projectId, {
+    requireOwner: body.data.action === "create",
+  });
+  if ("error" in scoped) return scopeErrorResponse(scoped.error);
   const repository = getSupportRepository();
   const [integration, link, ticket] = await Promise.all([
     repository.getIntegrationForProject(
