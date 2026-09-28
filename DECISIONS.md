@@ -208,6 +208,14 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** Migrations must stay additive so rollbacks remain compatible. The GitHub App has one webhook URL, now production; local webhook tests need a separate development App. Preview deployments share production variables unless a Neon preview branch is configured.
 
+## ADR-028 — Self-hosting: setup token, settings page, and a manifest-built GitHub App
+
+**Decision:** Anyone can run their own IssueRelay from a Deploy to Vercel button (whole repository, Root Directory `apps/web`, the Neon store, and three prompted secrets). A first-run `/setup` page creates the owner, workspace, and first project through the same `bootstrapInstallation` service as `pnpm setup:production`. It works only while the database has no accounts **and** `SETUP_TOKEN` (32+ characters, compared in constant time) is set; requests must be same-origin, and it returns 404 otherwise. Owner-only project settings replace allowed origins and connect a repository: the server finds the App's installation for `owner/name` with the App JWT and takes the repository ID and canonical name from GitHub, never from the request. `pnpm github:create-app` registers the App from a manifest (Issues read/write, Metadata read, the Issues event, webhook URL preset) and writes its credentials to a git-ignored file. `BETTER_AUTH_URL` falls back to `https://$VERCEL_PROJECT_PRODUCTION_URL`.
+
+**Why:** Self-hosting removes every CLI step and database access from first-time setup, while each piece keeps the existing trust rules: a freshly deployed URL is public, so claiming it needs a secret only the deployer holds; repository identity comes from GitHub as in `verifyRepository`; and the manifest sets the Issues subscription that was missed by hand during live validation.
+
+**Consequence:** One App serves one deployment. Setup closes permanently after the first account; recovering a lost owner still needs `pnpm setup:production` or database access. A project connects to one repository, and disconnecting stays an operator task. Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) remains future work.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.

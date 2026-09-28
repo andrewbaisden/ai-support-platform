@@ -60,6 +60,10 @@ Configure the App webhook URL as `https://<platform-host>/api/webhooks/github`, 
 
 Before using a public tunnel for webhook validation, replace the example dashboard owner password and `BETTER_AUTH_SECRET`. The tunnel also exposes `/login`; it is not a webhook-only surface. `GITHUB_ESCALATION_MOCK=1` is for local E2E and is ignored under `NODE_ENV=production`.
 
+## Self-hosting features
+
+`/setup` needs an empty database and `SETUP_TOKEN` (32+ characters); locally, point a server at a fresh migrated database to try it. Project settings live at `/dashboard/projects/<id>/settings`. With `GITHUB_ESCALATION_MOCK=1` outside production, connecting uses a deterministic mock lookup: repository names starting with `not-installed` report no installation. `pnpm github:create-app --platform https://<deployment>` needs an `https://` platform and writes `.env.github-app.local`. The deployer's walkthrough is [SELF_HOSTING.md](SELF_HOSTING.md).
+
 ## Commands
 
 | Command | Purpose |
@@ -71,5 +75,6 @@ Before using a public tunnel for webhook validation, replace the example dashboa
 | `pnpm test:e2e` | Chromium journeys through both apps; needs migrated, seeded dev DB for ingestion/dashboard specs |
 | `pnpm db:generate`, `pnpm db:check`, `pnpm db:migrate` | Generate and review SQL, check migration history, apply migrations |
 | `pnpm db:seed`, `pnpm db:studio`, `pnpm db:down` | Seed local data, inspect locally, stop Compose without deleting its volume |
+| `pnpm github:create-app --platform <url>` | Create a deployment's GitHub App from a manifest |
 
 Install Chromium with `pnpm exec playwright install chromium` if it is missing. `pnpm test:db` uses only a separate local database whose name ends in `_test`; the runner refuses a nonlocal or development URL. Schema changes use reviewed migrations, never a production schema push. CI runs unit, migration, database, AI, GitHub, evaluation, and build checks against PostgreSQL 16; browser tests are a separate local gate.

@@ -25,6 +25,19 @@ Visitor → @issuerelay/widget → IssueRelay API → Ticket → AI triage → H
 - **Two-way sync.** Signed webhooks close and reopen tickets. Replays, stale deliveries, and early closes are handled.
 - **Production guardrails.** Required same-origin requests, safe redirects, a startup check for unsafe secrets, security headers, and a retention command.
 
+## Deploy your own
+
+Run your own IssueRelay platform on Vercel and Neon in about 15 minutes, all on free tiers:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay&project-name=issuerelay&repository-name=issuerelay&env=BETTER_AUTH_SECRET%2CCRON_SECRET%2CSETUP_TOKEN&envDescription=Three%20random%20secrets.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032.%20SETUP_TOKEN%20unlocks%20the%20one-time%20%2Fsetup%20page%3B%20delete%20it%20after%20setup.&envLink=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay%2Fblob%2Fmain%2Fdocs%2FSELF_HOSTING.md%232-deploy&stores=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%7D%5D)
+
+1. **Deploy** with the button: set Root Directory to `apps/web`, add the Neon database, and fill in three random secrets.
+2. **Set up** at `/setup`: create the owner account and your first project, and copy the widget key.
+3. **Connect GitHub:** `pnpm github:create-app --platform https://<your-app>` creates a correctly configured GitHub App; then connect your repository from the project's **Settings**.
+4. **Install the widget** on your site with the code from Settings.
+
+The step-by-step guide, including a no-terminal GitHub App option and troubleshooting, is in [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+
 ## Add the widget to a site
 
 ```sh
@@ -55,7 +68,7 @@ export function Support() {
 }
 ```
 
-The project key identifies a project; it is not a secret. See the [widget README](packages/widget/README.md) for props, host requirements, and privacy details.
+Use your platform's URL and the project key from its **Settings** page. The project key identifies a project; it is not a secret. See the [widget README](packages/widget/README.md) for props, host requirements, and privacy details.
 
 ## Run the platform locally
 
@@ -100,7 +113,7 @@ Live checks against a real GitHub App are opt-in and limited to disposable repos
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md), [decisions](DECISIONS.md), [security](SECURITY.md), [AI engineering](AI_ENGINEERING.md), [testing](TESTING.md)
-- [Product specification](docs/PRODUCT_SPEC.md), [roadmap](docs/ROADMAP.md), [development](docs/DEVELOPMENT.md), [deployment](docs/DEPLOYMENT.md), [releasing](docs/RELEASING.md)
+- [Product specification](docs/PRODUCT_SPEC.md), [roadmap](docs/ROADMAP.md), [development](docs/DEVELOPMENT.md), [self-hosting](docs/SELF_HOSTING.md), [deployment](docs/DEPLOYMENT.md), [releasing](docs/RELEASING.md)
 - [GitHub recovery runbook](docs/GITHUB_RECOVERY.md), [phase handoffs](docs/handoffs/), and [reviews](docs/reviews/)
 
 ## Status

@@ -1,6 +1,6 @@
 # Roadmap
 
-The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–13 and deployment: the widget runs on the owner's portfolio site, `@issuerelay/widget@0.1.0` is on npm and the platform runs on Vercel with Neon and Resend. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
+The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–13 and deployment: the widget runs on the owner's portfolio site, `@issuerelay/widget@0.1.0` is on npm and the platform runs on Vercel with Neon and Resend. Phase 16 makes the platform self-hostable, so anyone can deploy their own IssueRelay and install the widget against it. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
 
 | Phase | Outcome | State |
 | --- | --- | --- |
@@ -16,6 +16,8 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | Deploy | Vercel + Neon hosting, Resend email verification, scheduled retention | Complete ([handoff](handoffs/deployment.md), [runbook](DEPLOYMENT.md)) |
 | 13 | Portfolio installation | Complete ([handoff](handoffs/phase-13.md)) |
 | 14–15 | Dogfooding | Ongoing |
+| 16 | Self-hosted IssueRelay: Deploy to Vercel button, first-run `/setup`, project settings (key, origins, connect repository), GitHub App from a manifest, [self-hosting guide](SELF_HOSTING.md) | Implemented and tested locally; fresh-deploy proof pending ([handoff](handoffs/phase-16.md)) |
+| Future | Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) | Not planned yet |
 
 ## Next validation
 
