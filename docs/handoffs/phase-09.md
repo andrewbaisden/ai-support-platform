@@ -36,13 +36,14 @@ No generative AI, notifications, comment sync, automatic escalation, npm publica
 | `pnpm build` | Passed |
 | `pnpm test:e2e` | Passed: 17 on 3100/3101 with the isolated E2E database |
 | `git diff --check` | Passed |
-| `LIVE_GITHUB_TEST=1 pnpm github:live-journey …` | **Not re-run after these changes.** The local platform on :3000 was down, and the tunnel returned 530. The runner aborted before creating a ticket; its only GitHub calls were read-only App/repository checks. |
+| `LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository andrewbaisden/ai-support-platform-live-test` | **20/20 passed** (SUP-335 → issue #9, fixture triage). Owner recommendation recorded (`rerouted`); `github_labels_omitted` recorded once; close/reopen webhooks synced; redelivery a no-op (events 10→10); finished closed. |
+| `… --classifier jev` | **19/19 passed** (SUP-336 → issue #10). Jev: bug/engineering, confidence 1.00, `model` provenance, so no recommendation was needed; finished closed. |
 
-Live evidence for the journey itself (issues #1–#8, including a 19/19 Jev run with redelivery) is in the live journey review. The Phase 9 changes are validated locally and in PostgreSQL. Re-run the live journey once the platform is exposed again with rotated secrets. With fixture triage it will also exercise the owner-recommendation path, the `github_labels_omitted` event (the disposable repository has no `severity:high` label), and project attribution on real deliveries.
+The first attempt after these changes aborted cleanly while the platform was down: no ticket was created, and the only GitHub calls were read-only. After the owner rotated `BETTER_AUTH_SECRET` and the owner password and restarted the platform and tunnel, both live runs passed. Real deliveries for issue #9 show processed `closed`/`reopened` rows attributed to the project, and ignored `opened`/`labeled` rows unattributed. Earlier journey evidence (issues #1–#8) is in the live journey review.
 
 ## Known issues
 
-- **Blocker for any further public exposure:** `.env` still uses the example `BETTER_AUTH_SECRET`, and the owner password is the one committed in the E2E specs. Rotate both, re-bootstrap the owner, and invalidate sessions before starting another tunnel.
+- The owner rotated the local `BETTER_AUTH_SECRET` and owner password before the final live runs. Keep unique values whenever a tunnel is exposed.
 - Seeded and earlier fixture-triaged tickets now show `classification source fixture needs …` on a real App configuration. Re-triage with Jev or record an owner recommendation.
 - Recovering an interrupted `creating` claim still needs a guarded SQL update (runbook); there is no dashboard tool.
 - Out-of-order distinct webhook deliveries can still regress state (Phase 8 known issue).
@@ -65,4 +66,4 @@ These need owner approval:
 
 ## Exact Phase 10 starting point
 
-After owner approval and rotation of the local secrets: re-run `LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository andrewbaisden/ai-support-platform-live-test`, then start production hardening with the Phase 8 review's deferred security items (Origin requirement, callback helpers, role gates, email verification) before choosing hosting. Keep npm publication and portfolio installation for their later phases.
+After owner approval, start production hardening with the Phase 8 review's deferred security items (Origin requirement, callback helpers, role gates, email verification) before choosing hosting. Keep npm publication and portfolio installation for their later phases.
