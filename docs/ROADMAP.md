@@ -1,6 +1,6 @@
 # Roadmap
 
-The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–12 and deployment: `@issuerelay/widget@0.1.0` is on npm and the platform runs on Vercel with Neon and Resend. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
+The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The project is now branded IssueRelay. The current repository has completed Phases 11–13 and deployment: the widget runs on the owner's portfolio site, `@issuerelay/widget@0.1.0` is on npm and the platform runs on Vercel with Neon and Resend. Phase 9 [validated the journey live](reviews/phase-09-live-journey-test-review.md) and [closed its operational gaps](handoffs/phase-09.md); Phase 10 [hardened production behavior](handoffs/phase-10.md); hosting, email verification, and scheduled retention are chosen at deployment.
 
 | Phase | Outcome | State |
 | --- | --- | --- |
@@ -14,7 +14,8 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | 11 | External widget package validation | Complete ([handoff](handoffs/phase-11.md)) |
 | 12 | npm publication of `@issuerelay/widget` | Complete: 0.1.0 published and verified ([handoff](handoffs/phase-12.md)) |
 | Deploy | Vercel + Neon hosting, Resend email verification, scheduled retention | Complete ([handoff](handoffs/deployment.md), [runbook](DEPLOYMENT.md)) |
-| 13–15 | Portfolio installation and dogfooding | Later |
+| 13 | Portfolio installation | Complete ([handoff](handoffs/phase-13.md)) |
+| 14–15 | Dogfooding | Ongoing |
 
 ## Next validation
 

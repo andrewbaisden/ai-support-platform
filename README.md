@@ -105,7 +105,7 @@ Live checks against a real GitHub App are opt-in and limited to disposable repos
 
 ## Status
 
-The full journey, from widget to GitHub and back, has been validated live against a disposable repository. The widget is published on npm as [`@issuerelay/widget`](https://www.npmjs.com/package/@issuerelay/widget) (0.1.0), and the published tarball passed the same external-consumer and strict-CSP checks as the build. The platform is deployed on Vercel with Neon PostgreSQL and Resend email, and the full journey passed live against production. Installing the widget on a real site is next on the [roadmap](docs/ROADMAP.md).
+The full journey, from widget to GitHub and back, has been validated live against a disposable repository. The widget is published on npm as [`@issuerelay/widget`](https://www.npmjs.com/package/@issuerelay/widget) (0.1.0), and the published tarball passed the same external-consumer and strict-CSP checks as the build. The platform is deployed on Vercel with Neon PostgreSQL and Resend email, and the full journey passed live against production. The widget now runs on the author's portfolio site, where real reports are triaged and confirmed bugs become issues in its repository ([roadmap](docs/ROADMAP.md)).
 
 ## Responsible use
 
