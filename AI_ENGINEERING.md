@@ -37,6 +37,8 @@ Classification is a recommendation. Code maps `question` to support, `feature_re
 
 Automatic GitHub issue creation requires a validated `bug` classification, normalized confidence at least 0.90, an active project GitHub connection, safe publication content, and no owner override blocking escalation. Component labels come from configured mappings, never arbitrary model text. An uncertain result, detected sensitive data, or missing integration leaves the ticket visible for review. Severity may affect ordering but does not override privacy or confidence gates.
 
+Phase 9 (ADR-022): a GitHub escalation needs a `model` or `manual` classification or an owner recommendation. Fixture and fallback decisions are recorded normally but cannot publish on their own outside fully synthetic mock runs.
+
 ## Failure and prompt security
 
 The ticket is stored before AI work. A timeout, 4xx/5xx response, malformed answer, or exhausted retry changes work status and leaves the ticket in `needs_triage`; it does not delete the report or mark it spam. A generative failure uses the deterministic issue template. An invalid draft is not published. The dashboard shows the failure state and offers owner re-triage.

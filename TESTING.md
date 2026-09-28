@@ -1,6 +1,6 @@
 # Testing strategy
 
-Phase 8 adds webhook signature/policy unit tests, transactional PostgreSQL tests, and a signed close/reopen dashboard browser flow. The [live journey review](docs/reviews/phase-09-live-journey-test-review.md) adds a PostgreSQL journey suite for steps 5–15, a widget-to-webhook browser journey, webhook boundary specs, an isolated E2E environment, and the opt-in live GitHub runner. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
+Phase 8 adds webhook signature/policy unit tests, transactional PostgreSQL tests, and a signed close/reopen dashboard browser flow. Phase 9 adds provenance-gate, reconcile-route, labels-event, and webhook-attribution regressions (see its handoff). The [live journey review](docs/reviews/phase-09-live-journey-test-review.md) adds a PostgreSQL journey suite for steps 5–15, a widget-to-webhook browser journey, webhook boundary specs, an isolated E2E environment, and the opt-in live GitHub runner. Future phase gates must run the relevant checks, update this file with new real commands, and record results in that phase's handoff. Do not claim an unrun check passed.
 
 ## Commands available now
 

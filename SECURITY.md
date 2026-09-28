@@ -66,6 +66,10 @@ A unique `(provider, delivery_id)` constraint blocks replay, including concurren
 
 Security review: the signed body can still be malicious input, so the minimal Zod schema and bounded strings apply after verification. Missing installation on an issue event cannot mutate a linked ticket. The endpoint logs delivery ID, event/action, repository ID, issue number, and result only. A stolen secret would permit forged new delivery IDs; rotate it in the App and server. Exact duplicate IDs and repeated state changes are idempotent, while distinct delayed events can arrive out of order and require operator reconciliation. The 1 MiB cap limits memory use, but HMAC work and database writes can still be an abuse target if the secret is compromised; monitor 401/503 rates and latency.
 
+## Demo journey completion (Phase 9)
+
+Escalation additionally requires model/manual provenance or an owner recommendation (ADR-022), so synthetic fixture decisions cannot publish through a real App. The dashboard's unknown-outcome check can only reconcile a trusted App-authored issue, never create one. Previews no longer need App credentials; creation fails closed without them. Operator recovery, including accidental publication, is in [docs/GITHUB_RECOVERY.md](docs/GITHUB_RECOVERY.md). Before any further public exposure, replace the example `BETTER_AUTH_SECRET` and owner password: the live validation found both in use behind a public tunnel.
+
 ## Logs, retention, and incident response
 
 Log ticket IDs, project IDs, provider/operation status, webhook delivery IDs, latency, and safe error codes. Do not log raw messages, contact information, API keys, webhook bodies, provider prompts, or complete GitHub issue payloads. Set retention and deletion policy before live deployment, including how contact data and webhook diagnostics are removed. Rotate compromised credentials and public project keys, disable a project integration when needed, and reconcile remote issues after incidents or ambiguous API outcomes.

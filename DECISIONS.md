@@ -160,8 +160,16 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Consequence:** Migration `0004` adds `creating` to the GitHub issue check constraints; migration `0005` adds ordered audit numbers. A crash in `creating` requires operator reconciliation rather than automatic re-creation. Live App bot identity still needs disposable-repository verification. Existing confirmed links remain valid; old unconfirmed markers can be searched only with the strict App-author check. See [the review](docs/reviews/phase-08-grok-review.md) for deferred findings.
 
+## ADR-022 — Escalation needs model or human provenance
+
+**Decision:** GitHub preview and escalation require the current classification to come from a `model` or `manual` source, or an owner override that recommends escalation. `fixture` and `fallback` classifications block with `GITHUB_NOT_ELIGIBLE` unless a caller opts into `allowFixtureClassifications`, which only fully synthetic mock paths do (non-production `GITHUB_ESCALATION_MOCK=1`, the mock CLI, and tests).
+
+**Why:** The live journey's first issue was published from a fixture decision. Fixture confidence is a deterministic stand-in, not evidence, and the numeric threshold alone could not tell the difference (Phase 8 review item 7). An owner override keeps a deliberate human path without rewriting AI history.
+
+**Consequence:** Seeded and fixture-triaged tickets show a provenance block on real App configurations until re-triaged with Jev or recommended by an owner. The live runner records an owner recommendation when it uses fixture triage.
+
 ## Open operational inputs
 
 - TypeSafe/Jev account access is needed for a valid-key live classification run in a later phase; transport and 401 mapping were verified with a dummy key in Phase 5.
-- A disposable GitHub repository and GitHub App registration are needed for the Phase 7 live escalation test; never use the portfolio repository as the initial test target. No credentials exist in this environment, so live GitHub validation has not run.
+- The disposable repository `andrewbaisden/ai-support-platform-live-test` and GitHub App `ai-support-platform-dev` validated the live journey; never use the portfolio repository as a test target.
 - Hosting, managed PostgreSQL provider, and worker scheduling details are chosen before deployment. The application contracts above do not depend on a specific provider.
