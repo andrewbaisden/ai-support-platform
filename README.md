@@ -75,7 +75,7 @@ The project key identifies a project; it is not a secret or an authentication to
 
 ## Status and releases
 
-The core submission, triage, human review, GitHub escalation, and webhook synchronization flow is implemented and covered by local tests. Live GitHub webhook validation against a disposable repository has not yet run. There is no published release or npm package. [The roadmap](docs/ROADMAP.md) tracks the remaining validation and publication work.
+The core submission, triage, human review, GitHub escalation, and webhook synchronization flow is implemented and covered by local tests. The complete flow has also been validated live against a GitHub App and a disposable repository, including signed close/reopen webhooks and redelivery ([review](docs/reviews/phase-09-live-journey-test-review.md)). There is no published release or npm package. [The roadmap](docs/ROADMAP.md) tracks the remaining validation and publication work.
 
 ## Documentation
 
@@ -83,7 +83,7 @@ The core submission, triage, human review, GitHub escalation, and webhook synchr
 - [Product specification](docs/PRODUCT_SPEC.md) and [roadmap](docs/ROADMAP.md)
 - [Architecture](ARCHITECTURE.md) and [architecture decisions](DECISIONS.md)
 - [AI engineering](AI_ENGINEERING.md), [security](SECURITY.md), and [testing](TESTING.md)
-- [Phase handoffs](docs/handoffs/) and [Phase 8 review](docs/reviews/phase-08-grok-review.md)
+- [Phase handoffs](docs/handoffs/), [Phase 8 review](docs/reviews/phase-08-grok-review.md), and [live journey review](docs/reviews/phase-09-live-journey-test-review.md)
 
 ## Responsible use
 

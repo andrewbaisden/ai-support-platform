@@ -96,6 +96,8 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** PostgreSQL constraints and transactions are material to this phase, so SQLite would give misleading results. Docker is already available locally and avoids a production provider dependency. Keeping unit and database tests separate preserves a fast default `pnpm test`.
 
+**Amendment (live journey review):** Browser tests use their own local `_e2e` database and their own servers on 3100/3101 with a separate Next output directory, mock GitHub, and blank provider credentials. Reusing the development server and database let E2E tickets reach a live-configured app, and one was later published to the disposable repository. Development data now stays separate from automated browser data.
+
 ## ADR-014 — Append-only classifications with explicit ordering
 
 **Decision:** Keep every accepted classification as a separate row and assign it a database-generated monotonic classification number. The current classification is the highest number for a ticket; `Ticket.route` is a materialized workflow route updated in the same transaction. Only validated/policy-normalized decisions are stored, with source `model`, `manual`, `fallback`, or development `fixture`.

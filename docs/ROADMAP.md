@@ -1,6 +1,6 @@
 # Roadmap
 
-The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The current repository has completed Phase 8 and its [follow-up review](reviews/phase-08-grok-review.md). A live GitHub validation and a production-readiness pass remain before public use.
+The implementation history is preserved in [phase handoffs](handoffs/). This is a planning summary, not a promise of release dates. The current repository has completed Phase 8, its [follow-up review](reviews/phase-08-grok-review.md), and a [live journey validation](reviews/phase-09-live-journey-test-review.md) against a disposable repository. A production-readiness pass remains before public use.
 
 | Phase | Outcome | State |
 | --- | --- | --- |
@@ -8,14 +8,14 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | 1–2 | Monorepo foundation, domain model, PostgreSQL schema and seed | Complete |
 | 3–4 | Internal widget, demo consumer and public ticket ingestion | Complete |
 | 5–6 | AI triage and owner dashboard | Complete |
-| 7–8 | Operator-confirmed GitHub escalation and signed webhook synchronization | Complete locally; live GitHub validation pending |
-| 9 | Complete and validate the controlled demo journey in a disposable repository | Planned, requires owner approval |
+| 7–8 | Operator-confirmed GitHub escalation and signed webhook synchronization | Complete; live-validated in a disposable repository |
+| 9 | Complete and validate the controlled demo journey in a disposable repository | Journey validated live (steps 5–15); remaining operational gaps need owner approval |
 | 10–12 | Production hardening, external widget package validation and npm publication | Later |
 | 13–15 | Portfolio installation, dogfooding and technical article | Later |
 
 ## Next validation
 
-Use a disposable repository and synthetic ticket. Verify the App's repository and author identity, create exactly one issue, close and reopen it in GitHub, and inspect both webhook deliveries and dashboard state. A public HTTPS endpoint is needed for the webhook. Replace example owner credentials and Better Auth secret before exposing a local instance through a tunnel. The [Phase 8 handoff](handoffs/phase-08.md) has the test path and [review](reviews/phase-08-grok-review.md) lists deferred production findings.
+The live journey passed against `ai-support-platform-live-test` (see the [review](reviews/phase-09-live-journey-test-review.md)); repeat it with `LIVE_GITHUB_TEST=1 pnpm github:live-journey`. Before exposing a local instance through a tunnel again, replace the example owner password and Better Auth secret. The [Phase 8 review](reviews/phase-08-grok-review.md) and the live journey review list the deferred production findings.
 
 ## Release status
 
