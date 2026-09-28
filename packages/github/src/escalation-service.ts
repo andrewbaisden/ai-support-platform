@@ -5,6 +5,7 @@ import {
 import { buildIssueDraft, labelsFor, markerForTicket } from "./draft";
 import { GithubError } from "./errors";
 import { type SubmittedContact, screenReport } from "./privacy";
+import { type EscalationPolicy, provenanceBlock } from "./provenance";
 import type { CreatedIssue, IssueTrackerClient, TrackerFactory } from "./types";
 
 export const ESCALATION_EVENTS = {
@@ -13,6 +14,7 @@ export const ESCALATION_EVENTS = {
   failed: "github_issue_creation_failed",
   unknown: "github_issue_creation_unknown",
   blocked: "github_escalation_blocked",
+  labelsOmitted: "github_labels_omitted",
 } as const;
 
 export interface EscalationTicket {
@@ -34,6 +36,8 @@ export interface EscalationTicket {
     confidence: number | null;
     route: string | null;
     githubIssueRecommended: boolean;
+    /** Classification provenance: model, manual, fallback, or fixture. */
+    source: string;
   } | null;
   override: {
     route: string | null;
@@ -122,6 +126,7 @@ export interface EscalationRequest {
   repository: EscalationRepository;
   trackers: TrackerFactory;
   ticket: EscalationTicket;
+  policy?: EscalationPolicy;
 }
 
 /**
@@ -182,6 +187,19 @@ export async function escalateTicketToGitHub(
       reasons: [
         `type=${classification.type} route=${route} recommended=${recommended} confidence=${classification.confidence} threshold=${GITHUB_ESCALATION_CONFIDENCE_THRESHOLD}`,
       ],
+    };
+  }
+
+  const provenance = provenanceBlock({
+    source: classification.source,
+    ownerRecommended: ticket.override?.githubIssueRecommended === true,
+    policy: request.policy,
+  });
+  if (provenance) {
+    return {
+      outcome: "blocked",
+      code: "GITHUB_NOT_ELIGIBLE",
+      reasons: [provenance],
     };
   }
 
@@ -364,7 +382,7 @@ export async function escalateTicketToGitHub(
       await repository.recordEvent({
         projectId: ticket.projectId,
         ticketId: ticket.ticketId,
-        type: ESCALATION_EVENTS.requested,
+        type: ESCALATION_EVENTS.labelsOmitted,
         summary: `Labels not present in repository, omitted: ${dropped.join(", ")}.`,
       });
     }

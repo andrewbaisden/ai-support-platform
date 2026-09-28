@@ -57,6 +57,7 @@ function ticket(overrides: Partial<EscalationTicket> = {}): EscalationTicket {
       confidence: 0.94,
       route: "engineering",
       githubIssueRecommended: true,
+      source: "model",
     },
     override: null,
     ...overrides,
@@ -162,10 +163,102 @@ describe("escalateTicketToGitHub", () => {
           confidence: 0.4,
           route: "engineering",
           githubIssueRecommended: true,
+          source: "model",
         },
       }),
     });
     expect(low.outcome).toBe("blocked");
+  });
+
+  it("never escalates a fixture classification without an owner recommendation", async () => {
+    const { repository } = createFakeRepository();
+    const factory = createMockTrackerFactory();
+    const fixture = ticket({
+      classification: {
+        type: "bug",
+        severity: "medium",
+        confidence: 0.94,
+        route: "engineering",
+        githubIssueRecommended: true,
+        source: "fixture",
+      },
+    });
+    expect(
+      await escalateTicketToGitHub({
+        repository,
+        trackers: factory,
+        ticket: fixture,
+      }),
+    ).toMatchObject({ outcome: "blocked", code: "GITHUB_NOT_ELIGIBLE" });
+    expect(repository.reserveIssueLink).not.toHaveBeenCalled();
+    expect(factory.created).toHaveLength(0);
+    expect(
+      (
+        await escalateTicketToGitHub({
+          repository,
+          trackers: factory,
+          ticket: {
+            ...fixture,
+            override: { route: null, githubIssueRecommended: true },
+          },
+        })
+      ).outcome,
+    ).toBe("created");
+    expect(
+      (
+        await escalateTicketToGitHub({
+          repository: createFakeRepository().repository,
+          trackers: createMockTrackerFactory(),
+          ticket: fixture,
+          policy: { allowFixtureClassifications: true },
+        })
+      ).outcome,
+    ).toBe("created");
+  });
+
+  it("records omitted labels as their own event, not a second request", async () => {
+    const { repository, events } = createFakeRepository();
+    const mock = createMockTrackerFactory();
+    const created: string[][] = [];
+    const outcome = await escalateTicketToGitHub({
+      repository,
+      trackers: {
+        async forInstallation(installationId) {
+          const client = await mock.forInstallation(installationId);
+          return {
+            ...client,
+            listLabels: async () => ["bug"],
+            createIssue: async (input) => {
+              created.push(input.labels);
+              return client.createIssue(input);
+            },
+          };
+        },
+      },
+      ticket: ticket({
+        classification: {
+          type: "bug",
+          severity: "high",
+          confidence: 0.94,
+          route: "engineering",
+          githubIssueRecommended: true,
+          source: "model",
+        },
+      }),
+    });
+    expect(outcome.outcome).toBe("created");
+    expect(created).toEqual([["bug"]]);
+    expect(events).toEqual([
+      ESCALATION_EVENTS.requested,
+      ESCALATION_EVENTS.labelsOmitted,
+      ESCALATION_EVENTS.created,
+    ]);
+    expect(vi.mocked(repository.recordEvent)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "github_labels_omitted",
+        summary: "Labels not present in repository, omitted: severity:high.",
+      }),
+    );
   });
 
   it("holds back a report that repeats the visitor's submitted name", async () => {

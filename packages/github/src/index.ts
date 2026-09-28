@@ -37,6 +37,7 @@ export {
   type SubmittedContact,
   screenReport,
 } from "./privacy";
+export { type EscalationPolicy, provenanceBlock } from "./provenance";
 export type {
   CreatedIssue,
   IssueDraft,

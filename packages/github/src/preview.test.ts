@@ -18,6 +18,7 @@ function ticket(overrides: Partial<PreviewTicket> = {}): PreviewTicket {
       confidence: 0.94,
       route: "engineering",
       githubIssueRecommended: true,
+      source: "model",
     },
     override: null,
     ...overrides,
@@ -40,6 +41,42 @@ describe("previewEscalation", () => {
     expect(preview.draft.body).toContain(
       markerForTicket("SUP-123", "ticket-123"),
     );
+  });
+
+  it("requires model provenance or an owner recommendation", () => {
+    const fixture = ticket({
+      classification: {
+        type: "bug",
+        severity: "medium",
+        confidence: 0.94,
+        route: "engineering",
+        githubIssueRecommended: true,
+        source: "fixture",
+      },
+    });
+    expect(previewEscalation({ ticket: fixture, integration })).toEqual({
+      state: "blocked",
+      code: "GITHUB_NOT_ELIGIBLE",
+      reasons: [
+        "classification source fixture needs a model result or an owner recommendation",
+      ],
+    });
+    expect(
+      previewEscalation({
+        ticket: {
+          ...fixture,
+          override: { route: null, githubIssueRecommended: true },
+        },
+        integration,
+      }).state,
+    ).toBe("eligible");
+    expect(
+      previewEscalation({
+        ticket: fixture,
+        integration,
+        allowFixtureClassifications: true,
+      }).state,
+    ).toBe("eligible");
   });
 
   it("reports not-configured, linked, unknown, and blocked states", () => {

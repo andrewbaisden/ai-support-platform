@@ -62,6 +62,9 @@ afterAll(async () => {
   await pool.end();
 });
 
+// Fully synthetic runs (fixture triage + mock tracker) may escalate fixture
+// classifications, exactly as the mock-mode dashboard does.
+const LOCAL_MOCK_POLICY = { allowFixtureClassifications: true };
 const INSTALLATION_ID = 10;
 const REPOSITORY_ID = 20;
 const CONTACT = { name: "Ada Tester", email: "ada.tester@example.test" };
@@ -384,6 +387,7 @@ async function escalationInput(
           confidence: classification.confidence,
           route: classification.route,
           githubIssueRecommended: classification.githubIssueRecommended,
+          source: classification.source,
         }
       : null,
     override: override?.effective
@@ -416,6 +420,7 @@ async function previewFor(workspaceId: string, ticket: EscalationTicket) {
     link: link
       ? { status: link.status, issueNumber: link.issueNumber, url: link.url }
       : undefined,
+    allowFixtureClassifications: LOCAL_MOCK_POLICY.allowFixtureClassifications,
   });
 }
 
@@ -452,6 +457,7 @@ async function linkedBug(slug = "linked") {
   await triage(workspace.id, ticket, new FixtureTicketClassifier());
   const factory = createMockTrackerFactory();
   const outcome = await escalateTicketToGitHub({
+    policy: LOCAL_MOCK_POLICY,
     repository: escalationPort,
     trackers: factory,
     ticket: await escalationInput(workspace.id, ticket),
@@ -579,6 +585,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     // Step 8: explicit confirmation creates exactly one issue and links it.
     const factory = createMockTrackerFactory();
     const created = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
       repository: escalationPort,
       trackers: factory,
       ticket: input,
@@ -603,6 +610,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
         ?.status,
     ).toBe("queued");
     const repeat = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
       repository: escalationPort,
       trackers: factory,
       ticket: await escalationInput(workspace.id, ticket),
@@ -760,11 +768,11 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
       await support.getLatestOverride(workspace.id, project.id, ticket.id),
     ).toBeUndefined();
     const deliveries = await db.execute(
-      sql`SELECT status, count(*)::int AS n FROM webhook_events GROUP BY status ORDER BY status`,
+      sql`SELECT status, project_id, count(*)::int AS n FROM webhook_events GROUP BY status, project_id ORDER BY status`,
     );
     expect(deliveries.rows).toEqual([
-      { status: "ignored", n: 4 },
-      { status: "processed", n: 4 },
+      { status: "ignored", project_id: null, n: 4 },
+      { status: "processed", project_id: project.id, n: 4 },
     ]);
   });
 
@@ -808,6 +816,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     const factory = createMockTrackerFactory();
     expect(
       await escalateTicketToGitHub({
+        policy: LOCAL_MOCK_POLICY,
         repository: escalationPort,
         trackers: factory,
         ticket: input,
@@ -850,6 +859,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     const factory = createMockTrackerFactory();
     expect(
       await escalateTicketToGitHub({
+        policy: LOCAL_MOCK_POLICY,
         repository: escalationPort,
         trackers: factory,
         ticket: await escalationInput(workspace.id, ticket),
@@ -866,6 +876,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     });
     expect(
       await escalateTicketToGitHub({
+        policy: LOCAL_MOCK_POLICY,
         repository: escalationPort,
         trackers: factory,
         ticket: await escalationInput(workspace.id, resolvedTicket),
@@ -882,6 +893,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     );
     expect(
       await escalateTicketToGitHub({
+        policy: LOCAL_MOCK_POLICY,
         repository: escalationPort,
         trackers: factory,
         ticket: await escalationInput(workspace.id, disconnected),
@@ -964,6 +976,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
       { kind: "success" },
     ]);
     const first = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
       repository: escalationPort,
       trackers: factory,
       ticket: await escalationInput(workspace.id, ticket),
@@ -979,6 +992,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
       )?.status,
     ).toBe("retry_required");
     const second = await escalateTicketToGitHub({
+      policy: LOCAL_MOCK_POLICY,
       repository: escalationPort,
       trackers: factory,
       ticket: await escalationInput(workspace.id, ticket),
@@ -1018,6 +1032,7 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
     const factory = createMockTrackerFactory();
     expect(
       await escalateTicketToGitHub({
+        policy: LOCAL_MOCK_POLICY,
         repository: escalationPort,
         trackers: factory,
         ticket: input,
@@ -1045,5 +1060,61 @@ describe("live journey steps 5–15 against PostgreSQL", () => {
       (await support.getTicketForProject(workspace.id, project.id, ticket.id))
         ?.status,
     ).toBe("queued");
+  });
+
+  it("needs an owner recommendation before a real App publishes fixture triage", async () => {
+    const { workspace, project } = await setupProject("provenance");
+    const ticket = await submit(project.id, SAFARI_BUG);
+    await triage(workspace.id, ticket, new FixtureTicketClassifier());
+    const factory = createMockTrackerFactory();
+    // No policy: this is how the dashboard and CLI call a real GitHub App.
+    const blocked = await escalateTicketToGitHub({
+      repository: escalationPort,
+      trackers: factory,
+      ticket: await escalationInput(workspace.id, ticket),
+    });
+    expect(blocked).toEqual({
+      outcome: "blocked",
+      code: "GITHUB_NOT_ELIGIBLE",
+      reasons: [
+        "classification source fixture needs a model result or an owner recommendation",
+      ],
+    });
+    expect(
+      await support.getGitHubIssueForTicket(
+        workspace.id,
+        project.id,
+        ticket.id,
+      ),
+    ).toBeUndefined();
+    const owner = await createOwner();
+    await support.recordTicketOverride(
+      workspace.id,
+      {
+        projectId: project.id,
+        ticketId: ticket.id,
+        decidedBy: owner.id,
+        githubIssueRecommended: true,
+        reason: "Reproduced in Safari 17; publish to engineering.",
+      },
+      "rerouted",
+    );
+    const created = await escalateTicketToGitHub({
+      repository: escalationPort,
+      trackers: factory,
+      ticket: await escalationInput(workspace.id, ticket),
+    });
+    expect(created.outcome).toBe("created");
+    expect(factory.created).toHaveLength(1);
+    // The AI record is untouched; the human decision is separate.
+    expect(
+      (
+        await support.listClassificationsForTicket(
+          workspace.id,
+          project.id,
+          ticket.id,
+        )
+      ).map((row) => row.source),
+    ).toEqual(["fixture"]);
   });
 });

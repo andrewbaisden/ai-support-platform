@@ -35,12 +35,15 @@ function usage(): never {
     `Usage: LIVE_GITHUB_TEST=1 pnpm github:live-journey --repository <owner/name>
     [--project <uuid>] [--platform http://127.0.0.1:3000]
     [--classifier mock|jev] [--webhook-timeout 90] [--finish closed|open]
+    [--operator-email <owner email>]
 
 Creates a REAL issue in the project's connected repository. Requires:
 - LIVE_GITHUB_TEST=1
 - --repository equal to the connected repository, whose name contains
   "disposable", "live-test", or "sandbox"
 - GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY, a local DATABASE_URL
+- with the mock classifier, an operator account (--operator-email or
+  SEED_OWNER_EMAIL) to record the owner recommendation fixture triage needs
 - the platform running at --platform with GITHUB_WEBHOOK_SECRET, reachable
   by GitHub through the App's webhook URL (e.g. an HTTPS tunnel)
 `,
@@ -91,6 +94,8 @@ const platform = new URL(argValue("--platform") ?? "http://127.0.0.1:3000");
 const webhookTimeoutMs = Number(argValue("--webhook-timeout") ?? "90") * 1000;
 const classifierKind = argValue("--classifier") ?? "mock";
 const finish = argValue("--finish") ?? "closed";
+const operatorEmail =
+  argValue("--operator-email") ?? process.env.SEED_OWNER_EMAIL;
 if (finish !== "closed" && finish !== "open") usage();
 
 function createClassifier(): TicketClassifier {
@@ -233,6 +238,7 @@ async function escalationInput(
           confidence: classification.confidence,
           route: classification.route,
           githubIssueRecommended: classification.githubIssueRecommended,
+          source: classification.source,
         }
       : null,
     override: override?.effective
@@ -350,7 +356,11 @@ try {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-  const first = await submit();
+  const first = await submit().catch(() =>
+    fail(
+      `Platform not reachable at ${platform.origin}; start it (with the webhook tunnel) before a live run.`,
+    ),
+  );
   const accepted = (await first.json()) as { ticketReference?: string };
   if (!check("5 submit", first.status === 201, `HTTP ${first.status}`)) {
     process.exit(1);
@@ -427,6 +437,31 @@ try {
     )
   ) {
     fail("Ticket is not GitHub-eligible; stopping before any GitHub call.");
+  }
+
+  // Fixture triage is not evidence a live issue is warranted: record the
+  // owner recommendation a human would give, as the dashboard override does.
+  if (classifierKind === "mock") {
+    const operator = operatorEmail
+      ? await support.findUserByEmail(operatorEmail)
+      : undefined;
+    if (!operator) {
+      fail(
+        "Mock triage needs an operator account (--operator-email or SEED_OWNER_EMAIL).",
+      );
+    }
+    await support.recordTicketOverride(
+      workspaceId,
+      {
+        projectId,
+        ticketId: ticket.id,
+        decidedBy: operator.id,
+        githubIssueRecommended: true,
+        reason: `Live validation run ${runId}: operator recommends escalation of this synthetic bug.`,
+      },
+      "rerouted",
+    );
+    check("6 owner recommendation", true, "recorded for fixture triage");
   }
 
   // Step 7: preview must target the connected repository.

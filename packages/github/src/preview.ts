@@ -4,6 +4,7 @@ import {
 } from "@ai-support-platform/ai";
 import { buildIssueDraft } from "./draft";
 import { type SubmittedContact, screenReport } from "./privacy";
+import { provenanceBlock } from "./provenance";
 import type { IssueDraft } from "./types";
 
 export interface PreviewTicket {
@@ -22,6 +23,8 @@ export interface PreviewTicket {
     confidence: number | null;
     route: string | null;
     githubIssueRecommended: boolean;
+    /** Classification provenance: model, manual, fallback, or fixture. */
+    source: string;
   } | null;
   override: {
     route: string | null;
@@ -71,6 +74,7 @@ export function previewEscalation(input: {
   ticket: PreviewTicket;
   integration?: PreviewIntegration | undefined;
   link?: PreviewLink | undefined;
+  allowFixtureClassifications?: boolean;
 }): EscalationPreview {
   const { ticket, integration, link } = input;
   if (integration?.status !== "active") {
@@ -126,6 +130,20 @@ export function previewEscalation(input: {
       reasons: [
         `type=${classification.type} route=${route} confidence=${classification.confidence} threshold=${GITHUB_ESCALATION_CONFIDENCE_THRESHOLD}`,
       ],
+    };
+  }
+  const provenance = provenanceBlock({
+    source: classification.source,
+    ownerRecommended: ticket.override?.githubIssueRecommended === true,
+    policy: {
+      allowFixtureClassifications: input.allowFixtureClassifications ?? false,
+    },
+  });
+  if (provenance) {
+    return {
+      state: "blocked",
+      code: "GITHUB_NOT_ELIGIBLE",
+      reasons: [provenance],
     };
   }
   const screen = screenReport(ticket.message, { contact: ticket.contact });

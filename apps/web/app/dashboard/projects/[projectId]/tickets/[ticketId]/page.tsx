@@ -4,6 +4,7 @@ import { previewEscalation } from "@ai-support-platform/github";
 import { notFound } from "next/navigation";
 import { getTicketDetail } from "../../../../../../lib/dashboard";
 import { requireDashboardUser } from "../../../../../../lib/dashboard-session";
+import { usesMockEscalation } from "../../../../../../lib/github-tracker";
 import { GitHubSection } from "./github-section";
 import {
   OverrideForm,
@@ -74,6 +75,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
             confidence: classification.confidence,
             route: classification.route,
             githubIssueRecommended: classification.githubIssueRecommended,
+            source: classification.source,
           }
         : null,
       override: detail.effectiveOverride
@@ -86,6 +88,7 @@ export default async function TicketDetailPage({ params }: PageProps) {
     },
     integration: integration ?? undefined,
     link: link ?? undefined,
+    allowFixtureClassifications: usesMockEscalation(),
   });
   return (
     <div>

@@ -170,7 +170,9 @@ async function submitBug(
     route: "engineering",
     githubIssueRecommended: true,
     confidence: 0.94,
-    source: "fixture",
+    source: "model",
+    provider: "test",
+    model: "test-model",
   });
   return ticket;
 }
@@ -225,6 +227,7 @@ async function escalationInput(
       confidence: classification.confidence,
       route: classification.route,
       githubIssueRecommended: classification.githubIssueRecommended,
+      source: classification.source,
     },
     override: override?.effective
       ? {

@@ -12,7 +12,10 @@ import {
   requireTicketScope,
   ticketRefParamsSchema,
 } from "../../../../../../lib/dashboard-api";
-import { createEscalationTrackers } from "../../../../../../lib/github-tracker";
+import {
+  createEscalationTrackers,
+  usesMockEscalation,
+} from "../../../../../../lib/github-tracker";
 import { getSupportRepository } from "../../../../../../lib/support-runtime";
 
 function escalationPort(): EscalationRepository {
@@ -141,6 +144,7 @@ async function escalationTicket(
           confidence: classification.confidence,
           route: classification.route,
           githubIssueRecommended: classification.githubIssueRecommended,
+          source: classification.source,
         }
       : null,
     override: override?.effective
@@ -173,12 +177,6 @@ async function handleGithubPost(
       scoped.error === "UNAUTHENTICATED" ? 401 : 404,
     );
   }
-  let trackers: TrackerFactory;
-  try {
-    trackers = createEscalationTrackers();
-  } catch {
-    return apiError("GITHUB_MISCONFIGURED", 503);
-  }
   const repository = getSupportRepository();
   const [integration, link, ticket] = await Promise.all([
     repository.getIntegrationForProject(
@@ -205,14 +203,28 @@ async function handleGithubPost(
     link: link
       ? { status: link.status, issueNumber: link.issueNumber, url: link.url }
       : undefined,
+    allowFixtureClassifications: usesMockEscalation(),
   });
-  if (body.data.action === "preview" || preview.state !== "eligible") {
+  // An eligible ticket may create; an unknown outcome may only run the
+  // service's reconcile-only path ("Check for existing issue").
+  if (
+    body.data.action === "preview" ||
+    (preview.state !== "eligible" && preview.state !== "unknown")
+  ) {
     return NextResponse.json({ ok: true as const, preview });
+  }
+  // Only creation needs GitHub; previews work without App credentials.
+  let trackers: TrackerFactory;
+  try {
+    trackers = createEscalationTrackers();
+  } catch {
+    return apiError("GITHUB_MISCONFIGURED", 503);
   }
   const outcome = await escalateTicketToGitHub({
     repository: escalationPort(),
     trackers,
     ticket,
+    policy: { allowFixtureClassifications: usesMockEscalation() },
   });
   if (outcome.outcome === "failed" || outcome.outcome === "unknown") {
     return apiError(

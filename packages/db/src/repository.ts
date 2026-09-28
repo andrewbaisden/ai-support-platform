@@ -834,6 +834,8 @@ export function createSupportRepository(db: Database) {
           })
           .returning({ id: webhookEvents.id });
         if (!inserted) return { outcome: "duplicate" as const };
+        // Project context of the verified link, recorded only if processed.
+        let linkedProjectId: string | undefined;
         const scope = {
           findLink: async (ref: {
             repositoryId: bigint;
@@ -881,6 +883,7 @@ export function createSupportRepository(db: Database) {
               .for("update", { of: [githubIssues, tickets] })
               .limit(1);
             if (!row || row.issueNumber === null) return undefined;
+            linkedProjectId = row.projectId;
             const statusEvents = await tx
               .select({ type: ticketEvents.type })
               .from(ticketEvents)
@@ -959,6 +962,8 @@ export function createSupportRepository(db: Database) {
           .update(webhookEvents)
           .set({
             status: result.outcome === "processed" ? "processed" : "ignored",
+            projectId:
+              result.outcome === "processed" ? (linkedProjectId ?? null) : null,
             failureCode:
               result.outcome === "ignored" &&
               "reason" in result &&

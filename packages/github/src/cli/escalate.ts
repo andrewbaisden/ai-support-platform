@@ -184,6 +184,8 @@ try {
   const outcome = await escalateTicketToGitHub({
     repository: port,
     trackers,
+    // Synthetic mock runs may use fixture triage; live issues may not.
+    policy: { allowFixtureClassifications: !live },
     ticket: {
       ticketId,
       projectId: context.projectId,
@@ -205,6 +207,7 @@ try {
             confidence: classification.confidence,
             route: classification.route,
             githubIssueRecommended: classification.githubIssueRecommended,
+            source: classification.source,
           }
         : null,
       override: override?.effective

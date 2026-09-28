@@ -156,6 +156,33 @@ describe("webhook transaction", () => {
     ).toHaveLength(1);
   });
 
+  it("attributes a processed delivery to its project, never an ignored one", async () => {
+    const { project } = await linkedTicket();
+    const processed = randomUUID();
+    await close(processed);
+    const mismatched = randomUUID();
+    // Link found but rejected by policy (e.g. installation mismatch).
+    await support.withGitHubWebhookDelivery(
+      delivery(mismatched),
+      async (scope) => {
+        await scope.findLink({ repositoryId: 20n, githubIssueId: 30n });
+        return { outcome: "ignored" as const, reason: "identity_mismatch" };
+      },
+    );
+    const rows = await db
+      .select({
+        deliveryId: webhookEvents.deliveryId,
+        projectId: webhookEvents.projectId,
+      })
+      .from(webhookEvents);
+    expect(rows.find((row) => row.deliveryId === processed)?.projectId).toBe(
+      project.id,
+    );
+    expect(
+      rows.find((row) => row.deliveryId === mismatched)?.projectId,
+    ).toBeNull();
+  });
+
   it("rolls back on failure, allowing the same delivery ID to be retried", async () => {
     const { ticket } = await linkedTicket();
     const id = randomUUID();

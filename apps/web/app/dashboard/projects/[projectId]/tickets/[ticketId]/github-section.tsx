@@ -113,9 +113,11 @@ export function GitHubSection({
       {initial.state === "unknown" && (
         <div>
           <p role="alert" className="text-amber-800">
-            A previous creation attempt has unknown outcome. This check looks
-            for an issue created by this GitHub App. If none is found, an
-            operator must reconcile before another create.
+            A previous creation attempt has an unknown outcome. This check only
+            looks for an issue created by this GitHub App; it never creates one.
+            GitHub's issue list can lag a new issue by a minute, so check again
+            shortly if nothing is found, then follow the GitHub recovery
+            runbook.
           </p>
           <button
             type="button"
@@ -130,7 +132,8 @@ export function GitHubSection({
       {initial.state === "in-progress" && (
         <p role="status" className="text-amber-800">
           GitHub issue creation is in progress. Refresh after it finishes. If it
-          stays here, an operator must reconcile the remote result.
+          is still here after a few minutes, the attempt was interrupted: follow
+          the GitHub recovery runbook before trying again.
         </p>
       )}
       {initial.state === "blocked" && (
