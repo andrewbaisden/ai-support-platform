@@ -34,7 +34,7 @@ npm publish "$(node -p "require('node:path').join(require('node:os').tmpdir(), '
 
 Then:
 
-1. On npmjs.com → `@issuerelay/widget` → **Settings → Trusted publishing**, add GitHub Actions with repository `andrewbaisden/issuerelay`, workflow `release-widget.yml`, and environment `npm`.
+1. On npmjs.com → `@issuerelay/widget` → **Settings → Trusted publishing**, add GitHub Actions with organization or user `andrewbaisden`, repository `issuerelay` (the name only, not a URL), workflow `release-widget.yml` (the filename only), and environment `npm`, and tick **Allow `npm publish`**. A mismatch fails the publish step with `E404 Not Found` after the provenance statement is signed; the fields cannot be edited, so delete the entry and add it again. `0.1.1` (2026-09-29) was the first release through this workflow, after the repository field was corrected from a full URL.
 2. Optionally require 2FA and disallow token publishing in the same settings page.
 3. Verify from the registry (below).
 
