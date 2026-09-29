@@ -1,6 +1,6 @@
 {
   "name": "@issuerelay/widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embeddable React support widget for IssueRelay: questions, bug reports, and feature requests in an isolated Shadow DOM, with no CSS setup.",
   "license": "MIT",
   "author": "Andrew Baisden",
