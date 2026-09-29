@@ -46,6 +46,9 @@ test("first-run setup creates the owner and shows the widget key", async ({
   await form.getByLabel("Password", { exact: true }).fill(OWNER.password);
   await form.getByLabel("Confirm password").fill(OWNER.password);
   await form.getByLabel("Site name").fill("My site");
+  await expect(form.getByLabel("Site address")).toHaveValue(
+    "http://localhost:3000",
+  );
   await form.getByLabel("Site address").fill("https://site.example.test/");
   await form.getByRole("button", { name: "Set up IssueRelay" }).click();
   await expect(page.getByRole("alert").filter({ hasText: /./ })).toHaveText(
@@ -116,6 +119,10 @@ test("owner manages the key, site addresses, and repository in settings", async 
   await expect(saved.getByRole("listitem")).toHaveCount(1);
   await expect(saved).toContainText("https://www.site.example.test");
 
+  // The E2E servers run without a TypeSafe key.
+  await expect(
+    page.getByText("AI triage is not set up, so reports cannot become"),
+  ).toBeVisible();
   const repository = page.getByLabel("Repository (owner/name)");
   await repository.fill("example/not-installed-site");
   await page.getByRole("button", { name: "Connect" }).click();

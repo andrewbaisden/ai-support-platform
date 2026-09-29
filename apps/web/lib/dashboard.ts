@@ -106,6 +106,9 @@ export async function getProjectSettings(userId: string, projectId: string) {
     githubConfigured: Boolean(
       process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY,
     ),
+    // Offline fixture triage cannot justify publishing real reports, so
+    // GitHub issues need Jev in practice.
+    aiTriageConfigured: Boolean(process.env.TYPESAFE_API_KEY?.trim()),
   };
 }
 

@@ -9,7 +9,7 @@ type SettingsResult =
 
 const ERROR_MESSAGES: Record<string, string> = {
   INVALID_ORIGINS:
-    "Each address must be a site origin such as https://www.example.com, with no path.",
+    "Each address must be a site origin such as https://my-site.vercel.app or http://localhost:3000, with no path.",
   INVALID_REQUEST: "Enter the repository as owner/name.",
   OWNER_REQUIRED: "Only workspace owners can change settings.",
   ALREADY_CONNECTED: "This project is already connected to a repository.",
@@ -118,7 +118,7 @@ export function OriginsEditor({
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="https://www.example.com"
+            placeholder="https://my-site.vercel.app"
             className="rounded border border-slate-300 px-3 py-2"
           />
         </label>

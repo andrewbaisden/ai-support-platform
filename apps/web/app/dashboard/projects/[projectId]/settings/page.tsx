@@ -68,8 +68,12 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
           Allowed site addresses
         </h3>
         <p className="text-sm text-slate-600">
-          Reports are accepted only from these exact origins (scheme, host, and
-          port).
+          The widget only sends reports from these exact addresses (scheme,
+          host, and port); from anywhere else it shows &ldquo;We couldn&rsquo;t
+          send your message.&rdquo; Use <code>http://localhost:3000</code> for a
+          Next.js app on your computer, and add your live address, such as{" "}
+          <code>https://my-site.vercel.app</code> or your own domain (with and
+          without <code>www</code> if you use both).
         </p>
         {isOwner ? (
           <OriginsEditor
@@ -99,6 +103,17 @@ export default async function ProjectSettingsPage({ params }: PageProps) {
         <h3 id="github-heading" className="font-semibold">
           GitHub repository
         </h3>
+        {!settings.aiTriageConfigured && (
+          <p
+            className="rounded bg-amber-50 p-3 text-sm text-amber-900"
+            role="status"
+          >
+            AI triage is not set up, so reports cannot become GitHub issues yet:
+            they stay in the dashboard for review. Add a{" "}
+            <code>TYPESAFE_API_KEY</code> to this deployment&apos;s environment
+            variables and redeploy (see the self-hosting guide).
+          </p>
+        )}
         {repository ? (
           <p className="text-sm" role="status">
             Connected to{" "}

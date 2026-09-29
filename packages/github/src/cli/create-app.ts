@@ -105,7 +105,7 @@ const done = new Promise<void>((resolve, reject) => {
           response.writeHead(200, { "Content-Type": "text/html" });
           response.end(
             page(
-              `<h1>GitHub App created</h1><p>Return to your terminal for the next steps. You can close this tab.</p>`,
+              `<h1>GitHub App created</h1><p>Go back to your terminal for the next setup phase: adding the App to Vercel, installing it on your site's repository, and connecting it in IssueRelay. You can close this tab.</p>`,
             ),
           );
           process.stdout.write(
@@ -114,11 +114,15 @@ const done = new Promise<void>((resolve, reject) => {
               `Created GitHub App "${app.slug}": ${app.html_url}`,
               `Credentials written to ${outputFile} (git-ignored; delete it after copying).`,
               "",
-              "Next steps:",
+              "Next setup phase:",
               "  1. Add GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, and GITHUB_WEBHOOK_SECRET from that file",
               "     to your Vercel project's Production environment variables, then redeploy.",
-              `  2. Install the App on your repository: https://github.com/apps/${app.slug}/installations/new`,
-              "  3. In the IssueRelay dashboard, open your project's Settings and connect the repository.",
+              "  2. Install the App on the GitHub repository of the website or app where you will add",
+              '     the widget (bug reports become issues there). Choose "Only select repositories":',
+              `     https://github.com/apps/${app.slug}/installations/new`,
+              "  3. In the IssueRelay dashboard, open your project's Settings and connect that same",
+              "     repository as owner/name.",
+              "  4. For GitHub issues, also add TYPESAFE_API_KEY (AI triage); see docs/SELF_HOSTING.md.",
               "",
             ].join("\n"),
           );

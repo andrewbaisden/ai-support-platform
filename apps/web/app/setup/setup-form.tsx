@@ -74,7 +74,9 @@ export function SetupForm({ apiBaseUrl }: { apiBaseUrl: string }) {
         }
         const allowedOrigins = toOrigins(text("sites"));
         if (!allowedOrigins || allowedOrigins.length === 0) {
-          setError("Enter your site's address, e.g. https://example.com.");
+          setError(
+            "Enter your site's address, e.g. http://localhost:3000 or https://my-site.vercel.app.",
+          );
           return;
         }
         setPending(true);
@@ -158,13 +160,18 @@ export function SetupForm({ apiBaseUrl }: { apiBaseUrl: string }) {
             name="sites"
             required
             rows={2}
-            placeholder="https://example.com"
+            defaultValue="http://localhost:3000"
+            placeholder="http://localhost:3000"
             aria-describedby="setup-sites-hint"
             className="rounded border border-slate-300 px-3 py-2"
           />
           <span id="setup-sites-hint" className="text-xs text-slate-500">
-            Where the widget will run. One per line; add the www version too if
-            you use it.
+            The addresses your site runs on; reports from anywhere else are
+            refused. <code>http://localhost:3000</code> is where a Next.js app
+            runs on your computer. Add your live address too, such as{" "}
+            <code>https://my-site.vercel.app</code> or your own domain (with and
+            without <code>www</code> if you use both). One per line; you can
+            change these later in Settings.
           </span>
         </div>
       </fieldset>

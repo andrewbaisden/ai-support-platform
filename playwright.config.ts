@@ -15,6 +15,9 @@ export default defineConfig({
   // Local Better Auth sign-in and Next dev compilation are flaky under
   // concurrent browser workers; serialize the shared dev-server journey.
   workers: 1,
+  // Three dev servers compile routes on first use in this run; a dashboard
+  // journey that also retries a hydration-sensitive click can pass 30s.
+  timeout: 60_000,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   globalSetup: "./e2e/global-setup.ts",
