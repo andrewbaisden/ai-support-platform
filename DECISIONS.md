@@ -214,7 +214,7 @@ These decisions apply to the MVP unless later evidence justifies an ADR amendmen
 
 **Why:** Self-hosting removes every CLI step and database access from first-time setup, while each piece keeps the existing trust rules: a freshly deployed URL is public, so claiming it needs a secret only the deployer holds; repository identity comes from GitHub as in `verifyRepository`; and the manifest sets the Issues subscription that was missed by hand during live validation.
 
-**Consequence:** One App serves one deployment. Setup closes permanently after the first account; recovering a lost owner still needs `pnpm setup:production` or database access. A project connects to one repository, and disconnecting stays an operator task. Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) remains future work.
+**Consequence:** One App serves one deployment. Setup closes permanently after the first account; recovering a lost owner still needs `pnpm setup:production` or database access. A project connects to one repository, and disconnecting stays an operator task. In practice GitHub issues need Jev (`TYPESAFE_API_KEY`): the offline fixture classifier is a keyword test double whose fallback (`other`, 0.62) cannot reach the 0.9 bug threshold, and an owner recommendation cannot raise confidence, so the guide treats the key as required for escalation. Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) remains future work.
 
 ## Open operational inputs
 

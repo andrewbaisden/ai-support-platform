@@ -48,7 +48,7 @@ Owner-approved on 2026-09-28. Goal: anyone can deploy their own IssueRelay platf
 | `pnpm test:github` | 17 passed |
 | `pnpm db:check` | Passed |
 | `pnpm build` | Passed (web and demo) |
-| `pnpm test:e2e` | 23 passed (on 2026-09-29 one test failed once and passed on the rerun; Playwright cleared the result before it could be identified), including `self-hosting.spec.ts` (setup 404 on the seeded server; wrong token rejected; owner created; key and snippet shown; setup closed afterwards; sign-in; key copy; origin add/invalid/remove persisted; not-installed connect with install link; mock connect) |
+| `pnpm test:e2e` | 23 passed twice in a row after raising the per-test timeout to 60s (the intermittent failure was `dashboard.spec.ts` "operator resolves a ticket" hitting the 30s default while three dev servers compile; it passed 3/3 alone), including `self-hosting.spec.ts` (setup 404 on the seeded server; wrong token rejected; owner created; key and snippet shown; setup closed afterwards; sign-in; key copy; origin add/invalid/remove persisted; not-installed connect with install link; mock connect) |
 | `pnpm test:package` | 2 passed |
 | `git diff --check` | Clean |
 | Domain scan | The owner's personal domain does not appear in the repository |
@@ -91,10 +91,21 @@ Verified from here:
 
 The owner may now delete the test Vercel project, its Neon database, the `issuerelay-issuerelay-selfhost-che` App, and the local `.env.selfhost-check.local` and `.env.github-app.local` files.
 
+## Owner review of the guide (2026-09-29)
+
+| Feedback | Change |
+| --- | --- |
+| Say where the setup token is | Setup step: it was created at deploy time and is under **Settings → Environment Variables** |
+| "Next steps" after `create-app` was unclear, and "your repository" was vague | Browser page and terminal say **next setup phase**; step 2 names the repository of the website or app where the widget goes, installed with *Only select repositories*; a fourth line points to `TYPESAFE_API_KEY` |
+| `example.com` gave no hint what to enter; a wrong address only shows "We couldn't send your message" | The setup form defaults to `http://localhost:3000` and explains local, Vercel, and custom-domain addresses; Settings explains the same and quotes the widget's error; the guide and troubleshooting cover it |
+| Jev was listed as optional, but GitHub issues cannot be created without it | Jev moved into step 4 as required for issues (key from the TypeSafe console; credit shown at the time of writing, with the console as the source for current terms); step 7 and troubleshooting say reports stay in the dashboard without it; the project Settings page warns when `TYPESAFE_API_KEY` is missing |
+
+The $5.00 starting credit is what the owner's new TypeSafe console showed; TypeSafe's public site and docs do not state free-credit terms (the homepage lists Jev at $42 per billion input tokens), so the guide cites the console rather than promising an amount.
+
 ## Known limits and follow-ups
 
 - One App serves one deployment. A project connects to one repository, and disconnecting is still an operator task.
 - Setup closes permanently after the first account. A lost owner is recovered with `pnpm setup:production` or through the database.
-- Without `TYPESAFE_API_KEY`, triage uses fixtures. The owner must record a **Recommend** decision before creating an issue (existing provenance rule; documented in the guide).
+- **GitHub issues need `TYPESAFE_API_KEY`.** Without it, "Re-run AI triage" uses the keyword fixture classifier, a test double: most real reports fall back to `other` at 0.62, below the 0.9 bug threshold, and an owner recommendation cannot raise confidence. The proof's live journey passed with fixture triage only because its synthetic message matches a bug keyword. The guide originally presented Jev as optional with a "Recommend" workaround; owner review corrected that (see below).
 - Octokit logs a deprecation notice for the issue create/update endpoints, scheduled for removal on 2028-03-10 under the pinned API version; move to the newer REST API version before then.
 - Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) is future work and not planned yet.
