@@ -17,7 +17,11 @@ export function buildAppManifest(input: {
     throw new Error("The platform URL must use https://");
   }
   const origin = platform.origin;
-  const name = (input.name ?? `IssueRelay ${platform.hostname.split(".")[0]}`)
+  // "issuerelay-selfhost" → "IssueRelay selfhost", not a doubled prefix.
+  const label = (platform.hostname.split(".")[0] ?? "")
+    .replace(/^issuerelay-?/i, "")
+    .trim();
+  const name = (input.name ?? (label ? `IssueRelay ${label}` : "IssueRelay"))
     .slice(0, MAX_APP_NAME_LENGTH)
     .trim();
   return {

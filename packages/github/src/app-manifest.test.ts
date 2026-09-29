@@ -38,6 +38,12 @@ describe("GitHub App manifest", () => {
       redirectUrl: "http://127.0.0.1:1/callback",
     });
     expect(long.name.length).toBeLessThanOrEqual(34);
+    expect(
+      buildAppManifest({
+        platformUrl: "https://issuerelay-selfhost-check.vercel.app",
+        redirectUrl: "http://127.0.0.1:1/callback",
+      }).name,
+    ).toBe("IssueRelay selfhost-check");
     expect(() =>
       buildAppManifest({
         platformUrl: "http://insecure.example.test",

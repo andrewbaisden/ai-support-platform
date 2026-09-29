@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSharedDatabase, poolSizeFromEnv } from "./client";
+import { withExplicitSslMode } from "./ssl-mode";
 
 const URL_A = "postgresql://u:p@127.0.0.1:5432/pool_a";
 const URL_B = "postgresql://u:p@127.0.0.1:5432/pool_b";
@@ -29,6 +30,25 @@ describe("process database pool", () => {
     for (const invalid of ["0", "-1", "51", "2.5", "many"]) {
       vi.stubEnv("DATABASE_POOL_MAX", invalid);
       expect(() => poolSizeFromEnv(), invalid).toThrow(/DATABASE_POOL_MAX/);
+    }
+  });
+});
+
+describe("withExplicitSslMode", () => {
+  it("spells out verify-full for pg's aliases and leaves the rest alone", () => {
+    const neon =
+      "postgresql://u:p@ep-x.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    expect(withExplicitSslMode(neon)).toBe(
+      "postgresql://u:p@ep-x.us-east-1.aws.neon.tech/neondb?sslmode=verify-full&channel_binding=require",
+    );
+    for (const unchanged of [
+      URL_A,
+      `${URL_A}?sslmode=disable`,
+      `${URL_A}?sslmode=verify-full`,
+      `${URL_A}?uselibpqcompat=true&sslmode=require`,
+      "not a url",
+    ]) {
+      expect(withExplicitSslMode(unchanged)).toBe(unchanged);
     }
   });
 });

@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { withExplicitSslMode } from "./ssl-mode";
 
 const DEFAULT_POOL_MAX = 5;
 const LIMIT_POOL_MAX = 50;
@@ -23,7 +24,10 @@ export function poolSizeFromEnv(): number {
 
 /** A new pool owned by the caller (CLIs end it when they finish). */
 export function createDatabase(connectionString: string) {
-  const pool = new Pool({ connectionString, max: poolSizeFromEnv() });
+  const pool = new Pool({
+    connectionString: withExplicitSslMode(connectionString),
+    max: poolSizeFromEnv(),
+  });
   const db = drizzle({ client: pool, schema });
   return { db, pool };
 }
