@@ -36,7 +36,7 @@ Run your own IssueRelay platform on Vercel and Neon in about 15 minutes, all on 
 3. **Connect GitHub and AI triage:** `pnpm github:create-app --platform https://<your-app>` creates a correctly configured GitHub App. Add its values and a `TYPESAFE_API_KEY` (Jev triage, which GitHub issues need), then connect your site's repository from the project's **Settings**.
 4. **Install the widget** on your site with the code from Settings.
 
-The step-by-step guide, including a no-terminal GitHub App option and troubleshooting, is in [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+The step-by-step guide is in [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md). It includes a no-terminal GitHub App option, troubleshooting, and a **Fork + Import** alternative to the button: updates are one *Sync fork* click, but that path is not yet tested end to end.
 
 ## Add the widget to a site
 

@@ -18,17 +18,26 @@ What you end up with:
 
 ## 2. Deploy
 
+Choose one:
+
+- **Option A: Deploy button (recommended).** The quickest path, and the one tested end to end. It makes an independent copy of IssueRelay in your GitHub account, so updating later needs a one-time terminal step ([Updating](#updating)).
+- **Option B: Fork + Import.** A few more clicks, but your copy is a GitHub fork, so updates are one **Sync fork** click. **Not yet tested end to end**; if a step differs, follow Option A or [open an issue](https://github.com/andrewbaisden/issuerelay/issues).
+
+Both need the same three secrets, each a different random value of 32+ characters:
+
+| Variable | Purpose |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | Signs dashboard sessions. Changing it signs everyone out. |
+| `CRON_SECRET` | Authenticates the daily data-retention job. |
+| `SETUP_TOKEN` | Unlocks the one-time `/setup` page. Delete it after step 3. |
+
+### Option A: Deploy button (recommended)
+
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay&project-name=issuerelay&repository-name=issuerelay&env=BETTER_AUTH_SECRET%2CCRON_SECRET%2CSETUP_TOKEN&envDescription=Three%20random%20secrets.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032.%20SETUP_TOKEN%20unlocks%20the%20one-time%20%2Fsetup%20page%3B%20delete%20it%20after%20setup.&envLink=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay%2Fblob%2Fmain%2Fdocs%2FSELF_HOSTING.md%232-deploy&stores=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%7D%5D)
 
 1. Click **Deploy with Vercel**. Vercel copies this repository into your GitHub account.
 2. **Add the Neon database** when prompted. It creates `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), which the build uses to create the schema.
-3. **Fill in the three secrets**, each a different random value of 32+ characters:
-
-   | Variable | Purpose |
-   | --- | --- |
-   | `BETTER_AUTH_SECRET` | Signs dashboard sessions. Changing it signs everyone out. |
-   | `CRON_SECRET` | Authenticates the daily data-retention job. |
-   | `SETUP_TOKEN` | Unlocks the one-time `/setup` page. Delete it after step 3. |
+3. **Fill in the three secrets** from the table above.
 
 4. Deploy. **This first deploy fails** with `No Output Directory named "public" found`, and that is expected: the clone screen has no Root Directory setting, so Vercel builds the top of the repository instead of the platform in `apps/web`.
 5. **Set the Root Directory, then redeploy:**
@@ -38,6 +47,19 @@ What you end up with:
    4. Open **Deployments**, click **⋯** on the failed deployment, and choose **Redeploy**.
 
    This build applies the database migrations first (`pnpm db:migrate` appears in the log before `next build`), so it creates every table.
+
+### Option B: Fork + Import (not yet tested end to end)
+
+> **Untested:** this path follows Vercel's standard import flow but has not been run start to finish. Option A is the verified path. If a step below differs from what you see, please [open an issue](https://github.com/andrewbaisden/issuerelay/issues).
+
+1. **Fork** [andrewbaisden/issuerelay](https://github.com/andrewbaisden/issuerelay) on GitHub (keep *Copy the `main` branch only*). A fork of a public repository is public; your secrets never go in the repository, so that is safe.
+2. In Vercel, click **Add New… → Project** and **Import** your fork.
+3. On **Configure Project**:
+   - **Root Directory:** click **Edit** and choose `apps/web`. The **Framework Preset** should then show **Next.js**.
+   - **Environment Variables:** add the three secrets from the table above.
+4. Click **Deploy**. Without a database the build stops with `DATABASE_URL_UNPOOLED is required`; that is expected.
+5. In the project, open **Storage → Create Database → Neon** (or connect an existing Neon database) and connect it to the project for **Production**. This adds `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
+6. In **Settings → Build and Deployment**, check that **Node.js Version** is **24.x**, then **Deployments → ⋯ → Redeploy**. This build applies the database migrations first and creates every table.
 
 You do not need to set `BETTER_AUTH_URL`: on Vercel it defaults to your project's production address (`https://<project>.vercel.app`). Set it only if you add a custom domain, and always open the dashboard at that production address (not a per-deployment `…-abc123.vercel.app` URL), or sign-in is refused.
 
@@ -62,7 +84,7 @@ The App lets the dashboard create issues in your repository and keeps each repor
 
 ### Option A: one command
 
-Clone your copy of the repository (the one Vercel created in your GitHub account) and run the command **inside that folder** (Node.js 24, pnpm 11):
+Clone your copy of the repository (the one the Deploy button created, or your fork) and run the command **inside that folder** (Node.js 24, pnpm 11):
 
 ```sh
 git clone https://github.com/<you>/<your-repository>.git
@@ -136,7 +158,31 @@ Creating GitHub issues needs `TYPESAFE_API_KEY` (step 4). Without it, reports st
 
 ## Updating
 
-Pull changes from the upstream repository into your copy (GitHub's **Sync fork**, or `git pull https://github.com/andrewbaisden/issuerelay main`) and push. Vercel redeploys, and the production build applies any new migrations before serving the new version. Migrations are additive, so a rollback in Vercel still works with the schema.
+Your platform does not update itself; you pull IssueRelay's changes into your copy, and the push redeploys it.
+
+**If you forked (Option B):** on your fork's GitHub page, click **Sync fork → Update branch**. Vercel redeploys automatically.
+
+**If you used the Deploy button (Option A):** the button makes an **independent copy** (not a fork), so GitHub shows no *Sync fork* button, and a plain `git pull` from IssueRelay fails with `refusing to merge unrelated histories`. Connect your copy to IssueRelay once, and later updates are a normal pull.
+
+**First update (once):** in a local clone of your copy:
+
+```sh
+git remote add upstream https://github.com/andrewbaisden/issuerelay.git
+git fetch upstream
+git merge upstream/main --allow-unrelated-histories -X theirs -m "Connect to upstream IssueRelay"
+git push
+```
+
+`-X theirs` takes IssueRelay's version wherever the two copies differ. If you changed files in your copy, check `git diff HEAD~1` before pushing.
+
+**Every later update:**
+
+```sh
+git pull upstream main
+git push
+```
+
+Either way, each update redeploys on Vercel, and the production build applies any new database migrations before the new version serves traffic. Your data stays in your Neon database. Migrations are additive, so Vercel's *Instant Rollback* still works with the schema. Websites that use the widget need no change for platform updates. They only update the widget when a new `@issuerelay/widget` version is published and they upgrade it with `npm install @issuerelay/widget@latest`.
 
 ## What is stored where
 
