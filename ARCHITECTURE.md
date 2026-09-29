@@ -180,7 +180,7 @@ The journey was validated live against a disposable repository (see the [live jo
 
 ## Production deployment
 
-`apps/web` runs on Vercel with Neon PostgreSQL (pooled at runtime, direct for migrations) and Resend account email; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and ADR-027. Production builds migrate before building, a daily cron applies retention, and the startup guard refuses unsafe configuration. With email configured, dashboard sign-in requires a verified email, and `/forgot-password` → `/reset-password` resets a password and signs out other sessions. `pnpm setup:production` creates the owner, workspace, and projects without demo data.
+`apps/web` runs on Vercel with Neon PostgreSQL (pooled at runtime, direct for migrations) and Resend account email; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and ADR-027. Production builds migrate before building, a daily cron applies retention, and the startup guard refuses unsafe configuration. With email configured, dashboard sign-in requires a verified email, and `/forgot-password` → `/reset-password` resets a password and signs out other sessions. `pnpm setup:production` creates the owner, workspace, and projects without demo data. Database connections rewrite pg's `sslmode` aliases (`prefer`, `require`, `verify-ca`) to the equivalent explicit `verify-full`, which keeps certificate verification and avoids a per-connection warning on Neon URLs.
 
 ## Self-hosting (Phase 16)
 

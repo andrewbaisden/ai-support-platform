@@ -20,9 +20,8 @@ What you end up with:
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay&project-name=issuerelay&repository-name=issuerelay&env=BETTER_AUTH_SECRET%2CCRON_SECRET%2CSETUP_TOKEN&envDescription=Three%20random%20secrets.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032.%20SETUP_TOKEN%20unlocks%20the%20one-time%20%2Fsetup%20page%3B%20delete%20it%20after%20setup.&envLink=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay%2Fblob%2Fmain%2Fdocs%2FSELF_HOSTING.md%232-deploy&stores=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%7D%5D)
 
 1. Click **Deploy with Vercel**. Vercel copies this repository into your GitHub account.
-2. **Root Directory: set it to `apps/web`.** This is a monorepo, and the platform lives in `apps/web`. If the import screen does not offer it, finish the flow, then set it in **Project → Settings → Build and Deployment → Root Directory** and redeploy.
-3. **Add the Neon database** when prompted. It creates `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), which the build uses to create the schema.
-4. **Fill in the three secrets**, each a different random value of 32+ characters:
+2. **Add the Neon database** when prompted. It creates `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct), which the build uses to create the schema.
+3. **Fill in the three secrets**, each a different random value of 32+ characters:
 
    | Variable | Purpose |
    | --- | --- |
@@ -30,7 +29,14 @@ What you end up with:
    | `CRON_SECRET` | Authenticates the daily data-retention job. |
    | `SETUP_TOKEN` | Unlocks the one-time `/setup` page. Delete it after step 3. |
 
-5. Deploy. Production builds apply the database migrations first, so the first deploy creates every table.
+4. Deploy. **This first deploy fails** with `No Output Directory named "public" found`, and that is expected: the clone screen has no Root Directory setting, so Vercel builds the top of the repository instead of the platform in `apps/web`.
+5. **Set the Root Directory, then redeploy:**
+   1. In the new project, open **Settings → Build and Deployment** and scroll down to **Root Directory** (below the framework settings).
+   2. Enter `apps/web`, keep **Include files outside the root directory in the Build Step** on (the platform uses the repository's shared packages), and click **Save**.
+   3. On the same page, check that **Framework Preset** is **Next.js** with no Output Directory override (the repository's `apps/web/vercel.json` pins it; copies made before that pin need it set by hand), and that **Node.js Version** is **24.x**.
+   4. Open **Deployments**, click **⋯** on the failed deployment, and choose **Redeploy**.
+
+   This build applies the database migrations first (`pnpm db:migrate` appears in the log before `next build`), so it creates every table.
 
 You do not need to set `BETTER_AUTH_URL`: on Vercel it defaults to your project's production address (`https://<project>.vercel.app`). Set it only if you add a custom domain, and always open the dashboard at that production address (not a per-deployment `…-abc123.vercel.app` URL), or sign-in is refused.
 
@@ -52,9 +58,11 @@ The App lets the dashboard create issues in your repository and keeps each repor
 
 ### Option A: one command
 
-From a local clone of your repository (Node.js 24, pnpm 11):
+Clone your copy of the repository (the one Vercel created in your GitHub account) and run the command **inside that folder** (Node.js 24, pnpm 11):
 
 ```sh
+git clone https://github.com/<you>/<your-repository>.git
+cd <your-repository>
 pnpm install
 pnpm github:create-app --platform https://<your-project>.vercel.app
 ```
@@ -86,8 +94,10 @@ Redeploy (**Deployments → ⋯ → Redeploy**) so the platform picks them up, t
 
 ## 5. Connect your repository
 
-1. Install the App on the repository that should receive issues: open the App on GitHub → **Install App** → your account → **Only select repositories** → pick it.
-2. In the dashboard, open your project's **Settings**, enter the repository as `owner/name`, and click **Connect**. If the App is not installed there yet, the page tells you and links to the install screen.
+These are two separate steps: installing the App gives it access on GitHub, and connecting tells IssueRelay which repository this project's issues go to.
+
+1. **Install the App** on the repository that should receive issues: open the App on GitHub → **Install App** → your account → **Only select repositories** → pick it.
+2. **Connect it in IssueRelay:** in the dashboard, open your project's **Settings** (the **Settings** link on the project card, or **Project settings** above the ticket list). Under **GitHub repository**, enter the repository as `owner/name` and click **Connect**. The section changes to **Connected to owner/name**. If the App is not installed there yet, the page tells you and links to the install screen.
 
 A project connects to one repository. Settings is also where you copy the widget key and add or remove allowed site addresses.
 
@@ -135,12 +145,14 @@ A daily job erases visitor names and emails from tickets resolved more than 180 
 
 | Symptom | Fix |
 | --- | --- |
-| Build fails at the root of the repository | Set **Root Directory** to `apps/web` and redeploy. |
+| Build ends with `No Output Directory named "public" found` | Vercel built the repository root. Set **Root Directory** to `apps/web` (Settings → Build and Deployment, scroll down), save, and redeploy (step 2). |
 | Build fails with `DATABASE_URL_UNPOOLED is required` | Connect the Neon database to the project (Storage tab), then redeploy. |
 | The site shows a server error after deploy | Check the deployment's runtime logs: the startup check names any unsafe or missing setting (never its value), e.g. a secret shorter than 32 characters. |
+| Build succeeds at `apps/web` but still says `No Output Directory named "public"` | Set **Framework Preset** to **Next.js** and turn off any Output Directory override, then redeploy. |
 | `/setup` returns 404 | An account already exists, or `SETUP_TOKEN` is not set. Sign in at `/login` instead. |
 | Sign-in fails or loops | Open the production address, not a per-deployment URL. With a custom domain, set `BETTER_AUTH_URL` to it and redeploy. |
 | The widget says it could not send | Add your site's exact address (scheme, host, and port) in **Settings → Allowed site addresses**. |
+| Tickets show "No GitHub repository is connected" | Installing the App is not enough: connect the repository in the project's **Settings** (step 5). |
 | "GitHub is not configured on this deployment" | Add the three App variables and redeploy. |
 | Closing the issue does not resolve the ticket | The App must subscribe to the **Issues** event, and `GITHUB_WEBHOOK_SECRET` must equal the App's webhook secret. The App's **Advanced** tab lists deliveries and their responses (401 means the secrets differ). |
 

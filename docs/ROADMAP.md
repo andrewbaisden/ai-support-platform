@@ -16,7 +16,7 @@ The implementation history is preserved in [phase handoffs](handoffs/). This is 
 | Deploy | Vercel + Neon hosting, Resend email verification, scheduled retention | Complete ([handoff](handoffs/deployment.md), [runbook](DEPLOYMENT.md)) |
 | 13 | Portfolio installation | Complete ([handoff](handoffs/phase-13.md)) |
 | 14–15 | Dogfooding | Ongoing |
-| 16 | Self-hosted IssueRelay: Deploy to Vercel button, first-run `/setup`, project settings (key, origins, connect repository), GitHub App from a manifest, [self-hosting guide](SELF_HOSTING.md) | Implemented and tested locally; fresh-deploy proof pending ([handoff](handoffs/phase-16.md)) |
+| 16 | Self-hosted IssueRelay: Deploy to Vercel button, first-run `/setup`, project settings (key, origins, connect repository), GitHub App from a manifest, [self-hosting guide](SELF_HOSTING.md) | Complete: a fresh deployment built from the guide passed the live journey 20/20 ([handoff](handoffs/phase-16.md)) |
 | Future | Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) | Not planned yet |
 
 ## Next validation

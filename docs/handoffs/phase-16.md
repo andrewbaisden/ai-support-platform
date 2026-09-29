@@ -35,39 +35,66 @@ Owner-approved on 2026-09-28. Goal: anyone can deploy their own IssueRelay platf
   - It uses a new `db:e2e recreate` command.
   - `.next-e2e-setup` is ignored by git and Biome.
 
-## Verification (local, 2026-09-28)
+## Verification (local; re-run 2026-09-29 after the proof fixes)
 
 | Command | Result |
 | --- | --- |
-| `pnpm install --frozen-lockfile` | Passed (a first attempt in a batch script failed without output and did not reproduce) |
-| `pnpm lint` | Passed (225 files) |
+| `pnpm install --frozen-lockfile` | Passed (earlier batch-script "failures" were the script itself: zsh passed `install --frozen-lockfile` as one argument) |
+| `pnpm lint` | Passed (226 files) |
 | `pnpm typecheck` | Passed |
 | `pnpm test` | 30 files, 180 tests passed |
-| `pnpm test:db` | 6 files, 26 tests passed |
+| `pnpm test:db` | 6 files, 27 tests passed (including `withExplicitSslMode`) |
 | `pnpm test:ai` | 6 passed |
 | `pnpm test:github` | 17 passed |
 | `pnpm db:check` | Passed |
 | `pnpm build` | Passed (web and demo) |
-| `pnpm test:e2e` | 23 passed, including `self-hosting.spec.ts` (setup 404 on the seeded server; wrong token rejected; owner created; key and snippet shown; setup closed afterwards; sign-in; key copy; origin add/invalid/remove persisted; not-installed connect with install link; mock connect) |
+| `pnpm test:e2e` | 23 passed (on 2026-09-29 one test failed once and passed on the rerun; Playwright cleared the result before it could be identified), including `self-hosting.spec.ts` (setup 404 on the seeded server; wrong token rejected; owner created; key and snippet shown; setup closed afterwards; sign-in; key copy; origin add/invalid/remove persisted; not-installed connect with install link; mock connect) |
 | `pnpm test:package` | 2 passed |
 | `git diff --check` | Clean |
 | Domain scan | The owner's personal domain does not appear in the repository |
 
 `pnpm github:create-app` was smoke-tested locally: the manifest content is correct, and a wrong-state callback returns 400 with no file written. Creating a real App through it is part of the fresh-deploy proof.
 
-## Not yet done: fresh-deploy proof
+## Fresh-deploy proof (2026-09-29)
 
-The plan's proof step needs the owner to deploy a **new**, separate instance by following only `docs/SELF_HOSTING.md`: button → Root Directory → Neon → secrets → `/setup` → `pnpm github:create-app` → App variables → redeploy → install the App on `ai-support-platform-live-test` → connect in Settings. Then run the live journey against that deployment with `--allow-remote-database`, fix any doc step that differs from reality, and update this handoff and the ROADMAP row to Complete. Production (`issuerelay-web`) and its GitHub App stay untouched; the test deployment, Neon database, and App can be deleted afterwards.
+The owner deployed a new, separate instance by following `docs/SELF_HOSTING.md`: Vercel project `issuerelay-selfhost-check`, a new Neon database, and a new GitHub App created with `pnpm github:create-app`, installed only on `ai-support-platform-live-test`. Production (`issuerelay-web`) and its App were not touched.
 
-To confirm during the proof:
+**What happened, and what changed as a result:**
 
-- whether Vercel's clone screen offers Root Directory;
-- the Neon store prompt, and that its variable names are `DATABASE_URL`/`DATABASE_URL_UNPOOLED`;
-- that the fallback auth URL signs in at `<project>.vercel.app`.
+| Step | Reality | Fix |
+| --- | --- | --- |
+| Deploy button | Cloned the repository and added Neon; the clone screen has **no Root Directory setting** | Guide: the first deploy is expected to fail; set Root Directory, then redeploy |
+| First build | `No Output Directory named "public" found`: Vercel built the repository root | Troubleshooting quotes the error |
+| After setting Root Directory | Migrations ran (the build used `apps/web/vercel.json`), but the build failed the same way: the framework preset had been fixed at **Other** when the project was created | `apps/web/vercel.json` pins `"framework": "nextjs"`; the guide says to check the preset for copies made before the pin |
+| `/setup` | Worked; the owner and project were created; setup then returned 404 | None |
+| `pnpm github:create-app` | First run happened outside the repository (`Command not found`) | Guide shows clone → `cd` → run |
+| App name | `IssueRelay issuerelay-selfhost-check` was cut to `issuerelay-issuerelay-selfhost-che` | The default name drops a leading `issuerelay-` from the host (`IssueRelay selfhost-check`) |
+| Connect | Installing the App was taken for connecting; logs showed no settings request | Guide makes install and connect two named steps, with a troubleshooting row |
+| Runtime logs | Every request logged pg's `sslmode` alias warning at error level, which looks like a failure | Connections spell out `sslmode=verify-full` for pg's aliases (same certificate checks; verified TLS with an authorized certificate against Neon, with no warning) |
+
+Verified from here:
+
+- **Routes:** `/`, `/login`, and `/setup` returned 200 before setup; `/dashboard` redirected to sign-in; cross-origin `POST /api/setup` returned 403; the unauthenticated cron returned 401; `/setup` returned 404 after setup.
+- **Webhook:** a signed ping returned 200 `processed`; an unsigned request was rejected.
+- **App scope:** installed on the live-test repository only.
+- **Database:** one owner, one project, and one integration after connecting.
+
+**Live journey:** `pnpm github:live-journey --repository andrewbaisden/ai-support-platform-live-test --project <self-host project> --platform https://issuerelay-selfhost-check.vercel.app --classifier mock --operator-email <owner> --allow-remote-database`, using the new deployment's database and App credentials and no TypeSafe key. **20/20 checks passed:**
+
+- submit and idempotent retry (`SUP-1`);
+- fixture triage and the owner recommendation, i.e. the no-AI path the guide documents;
+- preview; creation of [issue #13](https://github.com/andrewbaisden/ai-support-platform-live-test/issues/13) by `issuerelay-issuerelay-selfhost-che[bot]`;
+- a repeat create reusing the link;
+- no private data, allowlisted labels, marker, and a single remote issue;
+- close → resolved; reopen → queued; a redelivered close changing nothing;
+- the full timeline; finished closed.
+
+The owner may now delete the test Vercel project, its Neon database, the `issuerelay-issuerelay-selfhost-che` App, and the local `.env.selfhost-check.local` and `.env.github-app.local` files.
 
 ## Known limits and follow-ups
 
 - One App serves one deployment. A project connects to one repository, and disconnecting is still an operator task.
 - Setup closes permanently after the first account. A lost owner is recovered with `pnpm setup:production` or through the database.
 - Without `TYPESAFE_API_KEY`, triage uses fixtures. The owner must record a **Recommend** decision before creating an issue (existing provenance rule; documented in the guide).
+- Octokit logs a deprecation notice for the issue create/update endpoints, scheduled for removal on 2028-03-10 under the pinned API version; move to the newer REST API version before then.
 - Hosted multi-tenant IssueRelay (public sign-up, invitations, billing) is future work and not planned yet.

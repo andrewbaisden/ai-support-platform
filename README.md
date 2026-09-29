@@ -31,7 +31,7 @@ Run your own IssueRelay platform on Vercel and Neon in about 15 minutes, all on 
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay&project-name=issuerelay&repository-name=issuerelay&env=BETTER_AUTH_SECRET%2CCRON_SECRET%2CSETUP_TOKEN&envDescription=Three%20random%20secrets.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032.%20SETUP_TOKEN%20unlocks%20the%20one-time%20%2Fsetup%20page%3B%20delete%20it%20after%20setup.&envLink=https%3A%2F%2Fgithub.com%2Fandrewbaisden%2Fissuerelay%2Fblob%2Fmain%2Fdocs%2FSELF_HOSTING.md%232-deploy&stores=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%7D%5D)
 
-1. **Deploy** with the button: set Root Directory to `apps/web`, add the Neon database, and fill in three random secrets.
+1. **Deploy** with the button: add the Neon database and fill in three random secrets. The first build fails until you set Root Directory to `apps/web` in the project settings and redeploy.
 2. **Set up** at `/setup`: create the owner account and your first project, and copy the widget key.
 3. **Connect GitHub:** `pnpm github:create-app --platform https://<your-app>` creates a correctly configured GitHub App; then connect your repository from the project's **Settings**.
 4. **Install the widget** on your site with the code from Settings.
